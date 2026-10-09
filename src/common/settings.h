@@ -533,16 +533,6 @@ struct Values {
                                                       true,
                                                       true};
 
-    SwitchableSetting<GpuFenceBehavior, true> gpu_fence_behavior{linkage,
-                                                                 GpuFenceBehavior::Default,
-                                                                 GpuFenceBehavior::Default,
-                                                                 GpuFenceBehavior::Strict,
-                                                                 "gpu_fence_behavior",
-                                                                 Category::RendererAdvanced,
-                                                                 Specialization::Default,
-                                                                 true,
-                                                                 true};
-
     SwitchableSetting<VramUsageMode, true> vram_usage_mode{linkage,
                                                            VramUsageMode::Conservative,
                                                            "vram_usage_mode",
@@ -1005,11 +995,6 @@ bool IsGPULevelHigh();
 bool IsDMALevelDefault();
 bool IsDMALevelSafe();
 
-bool IsGPUFenceBehaviorDefault();
-bool IsGPUFenceBehaviorBalanced();
-bool IsGPUFenceBehaviorAccurate();
-bool IsGPUFenceBehaviorStrict();
-bool IsGPUFenceDelayed();
 
 bool IsFastmemEnabled();
 void SetNceEnabled(bool is_64bit);

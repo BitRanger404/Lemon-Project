@@ -1544,7 +1544,6 @@ BufferId BufferCache<P>::FindBuffer(DAddr device_addr, u32 size, bool sparse_com
     const BufferId buffer_id = page_table[page];
     if (buffer_id) {
         Buffer& buffer = slot_buffers[buffer_id];
-        WaitForGpuFenceIfNeeded(buffer);
         if (buffer.IsInBounds(device_addr, size)) {
             bool usable = true;
             if constexpr (requires { buffer.IsSparseCompatible(); }) {
@@ -1558,22 +1557,6 @@ BufferId BufferCache<P>::FindBuffer(DAddr device_addr, u32 size, bool sparse_com
         }
     }
     return CreateBuffer(device_addr, size, sparse_compatible);
-}
-
-template <class P>
-void BufferCache<P>::WaitForGpuFenceIfNeeded(Buffer& buffer) {
-    if constexpr (!IS_OPENGL) {
-        const bool gpu_fence_accurate = Settings::IsGPUFenceBehaviorAccurate();
-        const bool gpu_fence_strict = Settings::IsGPUFenceBehaviorStrict();
-        if (gpu_fence_accurate || gpu_fence_strict) {
-            const u64 gpu_tick_delay = gpu_fence_strict ? 0 : 3;
-            const u64 buffer_tick = buffer.getWriteTick();
-            const u64 gpu_tick = runtime.KnownGpuTick();
-            if (buffer_tick > gpu_tick + gpu_tick_delay) {
-                runtime.Wait(buffer_tick);
-            }
-        }
-    }
 }
 
 template <class P>

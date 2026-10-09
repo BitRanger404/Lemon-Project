@@ -611,7 +611,6 @@ class SettingsFragmentPresenter(
     private fun addGraphicsAdvancedSettings(sl: ArrayList<SettingsItem>) {
         sl.apply {
             add(IntSetting.DMA_ACCURACY.key)
-            add(IntSetting.GPU_FENCE_BEHAVIOR.key)
             add(IntSetting.RENDERER_VRAM_USAGE_MODE.key)
             add(IntSetting.RENDERER_ASTC_DECODE_METHOD.key)
             add(BooleanSetting.BCN_ASTC_RECOMPRESSION.key)

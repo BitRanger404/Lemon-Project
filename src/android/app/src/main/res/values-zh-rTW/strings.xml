@@ -538,8 +538,6 @@
     <string name="renderer_accuracy_description">設定 GPU 模擬的準確度。大多數遊戲在設定為快速時即可正常渲染，但有些需要渲染粒子的遊戲仍需設為準確來避免圖形錯誤</string>
     <string name="dma_accuracy">DMA 準確度</string>
     <string name="dma_accuracy_description">控制 DMA 準確度。將準確度設為穩定可以修復某些遊戲中的問題，但在某些情況下也可能影響效能。如果不確定，請保留為預設</string>
-    <string name="gpu_fence_behavior">GPU 同步柵欄模式</string>
-    <string name="gpu_fence_behavior_description">控制 GPU 同步柵欄模式。即時是速度最快的選項，但可能會導致一些問題。使用平衡可以提供更好的相容性並修復某些遊戲中的錯誤。準確則是在犧牲部分效能的情況下進一步提升相容性。嚴格是最慢的選項，但可以修復那些對同步要求更嚴格的遊戲中的問題。預設則會依照 GPU 準確度設定</string>
     <string name="anisotropic_filtering">各向異性過濾</string>
     <string name="anisotropic_filtering_description">改善斜角檢視時的紋理品質</string>
     <string name="vram_usage_mode">VRAM使用模式</string>

@@ -773,15 +773,6 @@ abstract class SettingsItem(
                 )
             )
             put(
-                SingleChoiceSetting(
-                    IntSetting.GPU_FENCE_BEHAVIOR,
-                    titleId = R.string.gpu_fence_behavior,
-                    descriptionId = R.string.gpu_fence_behavior_description,
-                    choicesId = R.array.gpuFenceBehaviorNames,
-                    valuesId = R.array.gpuFenceBehaviorValues
-                )
-            )
-            put(
                 SwitchSetting(
                     BooleanSetting.RENDERER_ASYNCHRONOUS_SHADERS,
                     titleId = R.string.renderer_asynchronous_shaders,
