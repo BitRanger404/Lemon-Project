@@ -587,8 +587,6 @@
     <string name="renderer_asynchronous_gpu_emulation_description">Este hack puede aumentar el rendimiento ejecutando la emulación de la GPU de forma asíncrona, a costa de problemas gráficos y un aumento en la tasa de fallos debido a operaciones relacionadas con la sincronización.</string>
     <string name="renderer_async_presentation">Presentación asíncrona</string>
     <string name="renderer_async_presentation_description">Este hack puede aumentar el rendimiento al mover la presentación a un hilo independiente de la CPU a costa de problemas gráficos.</string>
-    <string name="renderer_reactive_flushing">Usar limpieza reactiva</string>
-    <string name="renderer_reactive_flushing_description">Mejora la precisión de renderizado en algunos juegos, pero reduce el rendimiento.</string>
     <string name="enable_buffer_history">Activar el historial del búfer</string>
     <string name="enable_buffer_history_description">Permite el acceso al estado del búfer anterior. Esta opción puede mejorar la calidad de renderizado y la consistencia en el rendimiento de algunos juegos.</string>
     <string name="enable_gpu_buffer_readback">Activar la lectura del buffer de la GPU</string>

@@ -403,8 +403,6 @@
     <string name="use_disk_shader_cache_description">Riduce lo stuttering caricando le shader già compilate all\'avvio.</string>
     <string name="renderer_force_max_clock">Forza clock massimi (solo Adreno)</string>
     <string name="renderer_force_max_clock_description">Forza la GPU a girare col massimo clock possibile (i vincoli alla temperatura saranno comunque applicati)</string>
-    <string name="renderer_reactive_flushing">Abilita il Reactive Flushing</string>
-    <string name="renderer_reactive_flushing_description">Migliora l\'accuratezza della grafica in alcuni giochi, al costo delle performance.</string>
     <string name="skip_cpu_inner_invalidation">Salta invalidamento interno CPU</string>
     <string name="skip_cpu_inner_invalidation_description">Salta alcuni invalidamenti della cache lato CPU durante gli aggiornamenti di memoria, riducendo l\'uso della CPU e migliorandone le prestazioni. Potrebbe causare glitch o crash in alcuni giochi.</string>
     <string name="renderer_asynchronous_shaders">Usa shaders asincrone</string>

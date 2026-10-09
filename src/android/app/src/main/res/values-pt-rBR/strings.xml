@@ -446,8 +446,6 @@
     <string name="use_disk_shader_cache_description">Reduz engasgos ao armazenar e carregar localmente os shaders.</string>
     <string name="renderer_force_max_clock">Forçar velocidade máxima (somente Adreno)</string>
     <string name="renderer_force_max_clock_description">Força a GPU a rodar na velocidade máxima (restrições térmicas serão aplicadas)</string>
-    <string name="renderer_reactive_flushing">Usar flushing reativo</string>
-    <string name="renderer_reactive_flushing_description">Melhora a precisão da renderização em alguns jogos ao custo de desempenho.</string>
     <string name="hacks">Hacks</string>
 
     <string name="skip_cpu_inner_invalidation">Ignorar Invalidação Interna da CPU</string>

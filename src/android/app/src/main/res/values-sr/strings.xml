@@ -368,8 +368,6 @@
     <string name="use_disk_shader_cache_description">Смањује муцање локалном чувањем и учитавањем генерисаних схадера.</string>
     <string name="renderer_force_max_clock">Формирајте максималне сатове (само адрено)</string>
     <string name="renderer_force_max_clock_description">Снагује ГПУ да се покреће максималним могућим сатовима (топлотна ограничења ће се и даље примењивати).</string>
-    <string name="renderer_reactive_flushing">Користите реактивно испирање</string>
-    <string name="renderer_reactive_flushing_description">Побољшава тачност приказивања у неким играма по цени перформанси.</string>
     <string name="skip_cpu_inner_invalidation">Preskoči unutrašnje poništavanje CPU-a</string>
     <string name="skip_cpu_inner_invalidation_description">Preskače određena poništavanja keša na strani CPU-a tokom ažuriranja memorije, smanjujući opterećenje procesora i poboljšavajući performanse. Može izazvati greške u nekim igrama.</string>
     <string name="renderer_asynchronous_shaders">Користите асинхроне схадера</string>

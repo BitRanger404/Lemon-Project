@@ -365,8 +365,6 @@
     <string name="use_disk_shader_cache_description">Csökkenti az akadásokat azáltal, hogy helyileg tárolja és tölti be a generált árnyékolókat.</string>
     <string name="renderer_force_max_clock">Maximum órajel kényszerítése (csak Adreno)</string>
     <string name="renderer_force_max_clock_description">Kényszeríti a GPU-t a lehető legnagyobb órajelen működésre (a hőmérséklet korlátozások továbbra is érvényben maradnak).</string>
-    <string name="renderer_reactive_flushing">Reaktív ürítés használata</string>
-    <string name="renderer_reactive_flushing_description">Javítja a renderelési pontosságot néhány játékban a teljesítmény rovására.</string>
     <string name="skip_cpu_inner_invalidation">CPU belső érvénytelenítés kihagyása</string>
     <string name="skip_cpu_inner_invalidation_description">Kihagy néhány CPU-oldali gyorsítótár-érvénytelenítést memóriafrissítések közben, csökkentve a CPU használatát és javítva a teljesítményt. Néhány játékban hibákat vagy összeomlást okozhat.</string>
     <string name="renderer_asynchronous_shaders">Aszinkron árnyékolók használata</string>

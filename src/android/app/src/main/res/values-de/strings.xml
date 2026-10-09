@@ -499,8 +499,6 @@ Wird der Handheld-Modus verwendet, verringert es die Auflösung und erhöht die 
     <string name="use_disk_shader_cache_description">Reduziert Ruckler durch Shader-Caching.</string>
     <string name="renderer_force_max_clock">Maximale Taktfrequenz erzwingen (nur Adreno)</string>
     <string name="renderer_force_max_clock_description">Erzwingt maximale GPU-Taktfrequenz. (thermische Einschränkungen werden weiterhin angewendet).</string>
-    <string name="renderer_reactive_flushing">Reaktives Flushing</string>
-    <string name="renderer_reactive_flushing_description">Verbessert die Genauigkeit in einigen Spielen.</string>
     <string name="hacks">Hacks</string>
 
     <string name="fast_gpu_time">GPU-Takte</string>

@@ -624,7 +624,6 @@ class SettingsFragmentPresenter(
             add(BooleanSetting.RENDERER_ASYNCHRONOUS_GPU_EMULATION.key)
             add(BooleanSetting.RENDERER_ASYNC_PRESENTATION.key)
             add(BooleanSetting.SYNC_MEMORY_OPERATIONS.key)
-            add(BooleanSetting.RENDERER_REACTIVE_FLUSHING.key)
             add(BooleanSetting.ENABLE_BUFFER_HISTORY.key)
             add(BooleanSetting.ENABLE_GPU_BUFFER_READBACK.key)
             add(BooleanSetting.USE_OPTIMIZED_VERTEX_BUFFERS.key)

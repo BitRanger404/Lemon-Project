@@ -455,8 +455,6 @@
     <string name="use_disk_shader_cache_description">Zmniejsza przycięcia przez przechowywanie gotowych wygenerowanych plików oświetlenia w pamięci urządzenia.</string>
     <string name="renderer_force_max_clock">Maksymalne taktowanie GPU (układy Adreno)</string>
     <string name="renderer_force_max_clock_description">Wymusza uruchomienie maksymalnego taktowania układu graficznego (zabezpieczenia termiczne będą dalej aktywne).</string>
-    <string name="renderer_reactive_flushing">Użyj spłukiwania reaktywnego - reactive flushing</string>
-    <string name="renderer_reactive_flushing_description">Poprawia jakość renderowania w kilku grach, kosztem wydajności.</string>
     <string name="hacks">Hacki</string>
 
     <string name="skip_cpu_inner_invalidation">Pomiń wewnętrzne unieważnienie CPU</string>
