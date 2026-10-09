@@ -260,8 +260,9 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
     };
     u8* pointer = impl->device_memory.template GetPointer<u8>(cpu_addr);
     u8* pointer_timestamp = impl->device_memory.template GetPointer<u8>(cpu_addr + 8);
-    bool is_synced = !Settings::IsGPUFenceDelayed() && is_fence;
-    std::function<void()> operation([this, is_synced, streamer, query_base = query, query_location,
+    // A fence query's value reaches the guest from the fence release thread, never on the spot.
+    const bool is_synced = false;
+    std::function<void()> operation([this, streamer, query_base = query, query_location,
                                      pointer, pointer_timestamp] {
         if (True(query_base->flags & QueryFlagBits::IsInvalidated)) {
             if (!is_synced) [[likely]] {

@@ -518,8 +518,6 @@
     <string name="renderer_accuracy_description">控制 GPU 模拟模式。大多数游戏在“快速”模式下渲染效果良好，但有些游戏仍需使用“精确”模式。而粒子效果通常只有在“精确”模式下才能正确渲染。</string>
     <string name="dma_accuracy">DMA 精度</string>
     <string name="dma_accuracy_description">控制 DMA 的精准度。安全精度可以修复存在于某些游戏中的问题，但在某些情况下也会对性能造成影响。如不确定，请保持“默认”。</string>
-    <string name="gpu_fence_behavior">GPU 围栏行为</string>
-    <string name="gpu_fence_behavior_description">控制 GPU 围栏同步行为。“即时”是速度最快的选项，但可能会引入一些问题。“均衡”提供了更好的兼容性，可能修复某些游戏中的问题。“精确”在牺牲部分性能的前提下进一步提升兼容性。“严格”是速度最慢的选项，但可以修复那些要求更严格同步的问题。默认遵循 GPU “精确”设定。</string>
     <string name="anisotropic_filtering">各向异性过滤</string>
     <string name="anisotropic_filtering_description">提升斜视角下的纹理质量</string>
     <string name="vram_usage_mode">显存使用模式</string>
@@ -1049,11 +1047,6 @@
     <string name="dma_accuracy_safe">安全</string>
 
     <!-- GPU Fence Behavior -->
-    <string name="gpu_fence_behavior_default">默认</string>
-    <string name="gpu_fence_behavior_immediate">即时</string>
-    <string name="gpu_fence_behavior_balanced">均衡</string>
-    <string name="gpu_fence_behavior_accurate">精确</string>
-    <string name="gpu_fence_behavior_strict">严格</string>
 
     <string name="vram_usage_conservative">保守式</string>
     <string name="vram_usage_aggressive">主动式</string>

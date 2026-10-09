@@ -537,8 +537,6 @@
     <string name="renderer_accuracy_description">Управляет режимом эмуляции ГПУ. Большинство игр нормально отображаются в режиме Быстрый, но для некоторых требуется режим Точный. Частицы обычно корректно отображаются только в режиме Точный.</string>
     <string name="dma_accuracy">Точность DMA</string>
     <string name="dma_accuracy_description">Управляет точностью DMA. Безопасная точность может исправить проблемы в некоторых играх, но в некоторых случаях также может повлиять на производительность. Если не уверены, оставьте значение По умолчанию.</string>
-    <string name="gpu_fence_behavior">Поведение барьеров ГПУ</string>
-    <string name="gpu_fence_behavior_description">Управляет поведением синхронизации через барьеры ГПУ. Мгновенный — самый быстрый вариант, но может вызывать некоторые проблемы. Сбалансированный обеспечивает лучшую совместимость и может исправлять проблемы в некоторых играх. Точный ещё больше повышает совместимость ценой некоторого снижения производительности. Строгий — самый медленный вариант, но может исправлять проблемы, требующие более строгой синхронизации. По умолчанию соответствует настройке точности ГПУ.</string>
     <string name="anisotropic_filtering">Анизотропная фильтрация</string>
     <string name="anisotropic_filtering_description">Улучшает качество текстур под углом</string>
     <string name="vram_usage_mode">Режим VRAM</string>
@@ -1075,11 +1073,6 @@
     <string name="dma_accuracy_safe">Безопасный</string>
 
     <!-- GPU Fence Behavior -->
-    <string name="gpu_fence_behavior_default">По умолчанию</string>
-    <string name="gpu_fence_behavior_immediate">Мгновенный</string>
-    <string name="gpu_fence_behavior_balanced">Сбалансированный</string>
-    <string name="gpu_fence_behavior_accurate">Точный</string>
-    <string name="gpu_fence_behavior_strict">Строгий</string>
 
     <string name="vram_usage_conservative">Консервативный</string>
     <string name="vram_usage_aggressive">Агрессивный</string>
