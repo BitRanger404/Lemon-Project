@@ -123,6 +123,11 @@ public:
 
     void UpdatePagesCachedCount(DAddr addr, size_t size, s32 delta);
 
+    /// Makes the cached CPU pages backing this range unreadable while they stay cached, because
+    /// the GPU drew into them (see Memory::RasterizerProtectGpuWritten). Uncached pages are left
+    /// alone: nothing would make them readable again.
+    void ProtectGpuWritten(DAddr addr, size_t size);
+
     // New batch API to update multiple ranges with a single lock acquisition.
     void UpdatePagesCachedBatch(std::span<const std::pair<DAddr, size_t>> ranges, s32 delta);
 

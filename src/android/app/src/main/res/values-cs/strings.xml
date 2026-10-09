@@ -455,8 +455,6 @@
     <string name="use_disk_shader_cache_description">Zlepšuje plynulost ukládáním a načítáním vygenerovaných shaderů na disk.</string>
     <string name="renderer_force_max_clock">Vynutit maximální takty (pouze Adreno)</string>
     <string name="renderer_force_max_clock_description">Vynutí běh GPU na maximální možné frekvenci (teplotní limity stále platí).</string>
-    <string name="renderer_reactive_flushing">Reaktivní flushing</string>
-    <string name="renderer_reactive_flushing_description">Zlepšuje přesnost vykreslování v některých hrách na úkor výkonu.</string>
     <string name="enable_buffer_history">Zapnout historii bufferu</string>
     <string name="enable_buffer_history_description">Umožňuje přístup k předchozím stavům bufferu. Tato volba může u některých her zvýšit kvalitu vykreslování a zlepšit stabilitu výkonu.</string>
     <string name="hacks">Hacky</string>

@@ -899,13 +899,6 @@ abstract class SettingsItem(
             )
             put(
                 SwitchSetting(
-                    BooleanSetting.RENDERER_REACTIVE_FLUSHING,
-                    titleId = R.string.renderer_reactive_flushing,
-                    descriptionId = R.string.renderer_reactive_flushing_description
-                )
-            )
-            put(
-                SwitchSetting(
                     BooleanSetting.ENABLE_BUFFER_HISTORY,
                     titleId = R.string.enable_buffer_history,
                     descriptionId = R.string.enable_buffer_history_description

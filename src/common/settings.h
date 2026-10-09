@@ -609,15 +609,6 @@ struct Values {
     SwitchableSetting<bool> use_video_framerate{linkage, false, "use_video_framerate",
                                                 Category::RendererAdvanced};
 
-    SwitchableSetting<bool> use_reactive_flushing{linkage,
-#ifdef __ANDROID__
-                                                  false,
-#else
-                                                  true,
-#endif
-                                                  "use_reactive_flushing",
-                                                  Category::RendererAdvanced};
-
     SwitchableSetting<bool> barrier_feedback_loops{linkage, true, "barrier_feedback_loops",
                                                    Category::RendererAdvanced};
 

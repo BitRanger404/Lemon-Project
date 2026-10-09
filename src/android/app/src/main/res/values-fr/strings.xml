@@ -472,8 +472,6 @@
     <string name="renderer_force_max_clock_description">Forcer le GPU à fonctionner à ses fréquences maximales possibles (les contraintes thermiques seront toujours appliquées).</string>
     <string name="renderer_asynchronous_gpu_emulation">Émulation GPU asynchrone </string>
     <string name="renderer_asynchronous_gpu_emulation_description">Ce contournement peut améliorer les performances en faisant tourner l\'émulation GPU de manière asynchrone au détriment de la fidélité graphique et de la stabilité (plantages plus fréquents) dus à des erreurs de cadence.</string>
-    <string name="renderer_reactive_flushing">Utiliser le vidage réactif</string>
-    <string name="renderer_reactive_flushing_description">Améliore la précision du rendu dans certains jeux au détriment des performances.</string>
     <string name="enable_buffer_history">Activer l\'historique du tampon</string>
     <string name="hacks">Contournements</string>
 
