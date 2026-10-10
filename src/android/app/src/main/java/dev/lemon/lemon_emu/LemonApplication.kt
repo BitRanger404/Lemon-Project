@@ -26,6 +26,7 @@ import dev.lemon.lemon_emu.utils.GpuDriverHelper
 import dev.lemon.lemon_emu.utils.Log
 import dev.lemon.lemon_emu.utils.PowerStateUpdater
 import dev.lemon.lemon_emu.utils.ControllerNavigationGlobalHook
+import dev.lemon.lemon_emu.ui.modern.UiMode
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -88,6 +89,7 @@ class LemonApplication : Application() {
         super.onCreate()
         installCrashLogger()
         application = this
+        UiMode.applyDefaultNightMode(this)
         documentsTree = DocumentsTree()
         DirectoryInitialization.start()
 

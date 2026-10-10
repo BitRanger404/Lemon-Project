@@ -4,6 +4,7 @@
 package dev.lemon.lemon_emu.ui.modern
 
 import android.content.Context
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import dev.lemon.lemon_emu.features.settings.model.AbstractBooleanSetting
@@ -21,9 +22,26 @@ object UiMode {
         PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
             .getBoolean(KEY, DEFAULT_MODERN)
 
-    fun setModern(context: Context, modern: Boolean) =
+    fun setModern(context: Context, modern: Boolean) {
         PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
             .edit { putBoolean(KEY, modern) }
+        applyDefaultNightMode(context)
+    }
+
+    /**
+     * The new interface is dark only. Making dark the app's default before any screen exists
+     * lets every screen start dark, instead of switching to dark in place after it's created: the
+     * emulation screen handles that switch itself and kept the light theme's text colours.
+     */
+    fun applyDefaultNightMode(context: Context) {
+        AppCompatDelegate.setDefaultNightMode(
+            if (isModern(context)) {
+                AppCompatDelegate.MODE_NIGHT_YES
+            } else {
+                AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+            }
+        )
+    }
 
     /** The same switch as a settings item, for the Settings screen. */
     fun asSetting(context: Context): AbstractBooleanSetting = object : AbstractBooleanSetting {
