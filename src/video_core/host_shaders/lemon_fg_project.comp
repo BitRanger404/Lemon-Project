@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Lemon frame generation: motion of the frame to generate, at time t between A (0) and C (1).
-// One invocation per 8x8 block of the motion search resolution.
+// One workgroup per 8x8 block of the motion search resolution, one invocation per pixel of it.
 //
 // Forward flow u_f (A(x) ~ C(x + u_f)) gives the displacement d from A, d = t * u_f(x - d),
 // solved by fixed-point iteration; backward flow u_b (C(x) ~ A(x + u_b)) gives the displacement
@@ -28,7 +28,11 @@ layout(push_constant) uniform PushConstants {
 };
 
 const int BLOCK = 8;
+const int PIXELS = BLOCK * BLOCK;
 const int ITERATIONS = 4;
+
+shared float partial[2][PIXELS];
+shared float totals[2];
 
 vec2 ForwardFlow(vec2 block) {
     return textureLod(sampler2D(forward_flow, linear_sampler), (block + 0.5) / vec2(grid), 0.0).xy;
@@ -39,28 +43,19 @@ vec2 BackwardFlow(vec2 block) {
         .xy;
 }
 
-float Sad(ivec2 block, vec2 offset_a, vec2 offset_c) {
+float PixelDiff(vec2 position, vec2 offset_a, vec2 offset_c) {
     const vec2 inv_size = 1.0 / vec2(level_size);
-    const vec2 base = vec2(block * BLOCK) + 0.5;
-    float sad = 0.0;
-    for (int y = 0; y < BLOCK; ++y) {
-        for (int x = 0; x < BLOCK; ++x) {
-            const vec2 p = base + vec2(x, y);
-            const float a =
-                textureLod(sampler2D(luma_a, linear_sampler), (p + offset_a) * inv_size, 0.0).r;
-            const float c =
-                textureLod(sampler2D(luma_c, linear_sampler), (p + offset_c) * inv_size, 0.0).r;
-            sad += abs(a - c);
-        }
-    }
-    return sad;
+    const float a =
+        textureLod(sampler2D(luma_a, linear_sampler), (position + offset_a) * inv_size, 0.0).r;
+    const float c =
+        textureLod(sampler2D(luma_c, linear_sampler), (position + offset_c) * inv_size, 0.0).r;
+    return abs(a - c);
 }
 
 void main() {
-    const ivec2 block = ivec2(gl_GlobalInvocationID.xy);
-    if (any(greaterThanEqual(block, grid))) {
-        return;
-    }
+    const ivec2 block = ivec2(gl_WorkGroupID.xy);
+    const uint pixel = gl_LocalInvocationIndex;
+    const vec2 position = vec2(block * BLOCK + ivec2(gl_LocalInvocationID.xy)) + 0.5;
     const vec2 centre = vec2(block);
 
     vec2 d = vec2(0.0);
@@ -77,8 +72,20 @@ void main() {
     const vec2 backward_a = -e * (t / (1.0 - t));
     const vec2 backward_c = e;
 
-    const bool use_backward =
-        Sad(block, backward_a, backward_c) < Sad(block, forward_a, forward_c);
-    imageStore(offsets, block,
-               use_backward ? vec4(backward_a, backward_c) : vec4(forward_a, forward_c));
+    partial[0][pixel] = PixelDiff(position, forward_a, forward_c);
+    partial[1][pixel] = PixelDiff(position, backward_a, backward_c);
+    barrier();
+    if (pixel < 2u) {
+        float sum = 0.0;
+        for (int j = 0; j < PIXELS; ++j) {
+            sum += partial[pixel][j];
+        }
+        totals[pixel] = sum;
+    }
+    barrier();
+    if (pixel == 0u) {
+        const bool use_backward = totals[1] < totals[0];
+        imageStore(offsets, block,
+                   use_backward ? vec4(backward_a, backward_c) : vec4(forward_a, forward_c));
+    }
 }

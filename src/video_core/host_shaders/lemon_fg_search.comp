@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2026 Lemon Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Lemon frame generation: block motion search at one pyramid level. One invocation per 8x8 block.
+// Lemon frame generation: block motion search at one pyramid level. One workgroup per 8x8 block,
+// one invocation per pixel of it: each candidate vector's cost is summed across the workgroup.
 //
 // Finds, for every block, the vector v (in this level's pixels) that best matches luma A at
 // x + ka * v against luma C at x + kc * v. Forward flow (A -> C, blocks anchored on A) is
@@ -41,46 +42,71 @@ layout(push_constant) uniform PushConstants {
 };
 
 const int BLOCK = 8;
+const int PIXELS = BLOCK * BLOCK;
 const int SEARCH_RADIUS = 6;
+const int MAX_BATCH = 20;
 
-vec2 InField(ivec2 block) {
+shared float partial[MAX_BATCH][PIXELS];
+shared float totals[MAX_BATCH];
+
+vec2 candidates[MAX_BATCH];
+ivec2 block;
+uint pixel;
+vec2 position;
+
+vec2 InField(ivec2 at) {
     if (mode == 1) {
-        const ivec2 coarse = clamp(block / 2, ivec2(0), in_grid - 1);
+        const ivec2 coarse = clamp(at / 2, ivec2(0), in_grid - 1);
         return texelFetch(sampler2D(field_in, linear_sampler), coarse, 0).xy * 2.0;
     }
-    return texelFetch(sampler2D(field_in, linear_sampler), clamp(block, ivec2(0), in_grid - 1), 0)
-        .xy;
+    return texelFetch(sampler2D(field_in, linear_sampler), clamp(at, ivec2(0), in_grid - 1), 0).xy;
 }
 
-vec2 TemporalField(ivec2 block) {
-    const vec2 uv = (vec2(clamp(block, ivec2(0), grid - 1)) + 0.5) / vec2(grid);
+vec2 TemporalField(ivec2 at) {
+    const vec2 uv = (vec2(clamp(at, ivec2(0), grid - 1)) + 0.5) / vec2(grid);
     return textureLod(sampler2D(temporal, linear_sampler), uv, 0.0).xy * temporal_scale;
 }
 
-float Sad(ivec2 block, vec2 v) {
+// Sums |A - C| over the block for candidates[0, count): totals[i], same in every invocation.
+void Evaluate(int count) {
     const vec2 inv_size = 1.0 / vec2(level_size);
-    const vec2 base = vec2(block * BLOCK) + 0.5;
-    float sad = 0.0;
-    for (int y = 0; y < BLOCK; ++y) {
-        for (int x = 0; x < BLOCK; ++x) {
-            const vec2 p = base + vec2(x, y);
-            const float a = textureLod(sampler2D(luma_a, linear_sampler), (p + ka * v) * inv_size,
-                                       0.0).r;
-            const float c = textureLod(sampler2D(luma_c, linear_sampler), (p + kc * v) * inv_size,
-                                       0.0).r;
-            sad += abs(a - c);
-        }
+    for (int i = 0; i < count; ++i) {
+        const vec2 v = candidates[i];
+        const float a =
+            textureLod(sampler2D(luma_a, linear_sampler), (position + ka * v) * inv_size, 0.0).r;
+        const float c =
+            textureLod(sampler2D(luma_c, linear_sampler), (position + kc * v) * inv_size, 0.0).r;
+        partial[i][pixel] = abs(a - c);
     }
-    return sad * 255.0;
+    barrier();
+    if (pixel < uint(count)) {
+        float sum = 0.0;
+        for (int j = 0; j < PIXELS; ++j) {
+            sum += partial[pixel][j];
+        }
+        totals[pixel] = sum * 255.0;
+    }
+    barrier();
 }
 
-float Cost(ivec2 block, vec2 v, vec2 median, bool with_median) {
-    float cost = Sad(block, v) + zero_bias * float(BLOCK) * (abs(v.x) + abs(v.y));
+float Penalty(vec2 v, vec2 median, bool with_median) {
+    float penalty = zero_bias * float(BLOCK) * (abs(v.x) + abs(v.y));
     if (with_median) {
         const vec2 d = abs(v - median);
-        cost += smooth_bias * float(BLOCK) * (d.x + d.y);
+        penalty += smooth_bias * float(BLOCK) * (d.x + d.y);
     }
-    return cost;
+    return penalty;
+}
+
+void PickBest(int count, vec2 median, bool with_median, inout vec2 best, inout float best_cost) {
+    Evaluate(count);
+    for (int i = 0; i < count; ++i) {
+        const float cost = totals[i] + Penalty(candidates[i], median, with_median);
+        if (cost < best_cost) {
+            best_cost = cost;
+            best = candidates[i];
+        }
+    }
 }
 
 float Median9(float v[9]) {
@@ -100,104 +126,70 @@ float Median9(float v[9]) {
 }
 
 void main() {
-    const ivec2 block = ivec2(gl_GlobalInvocationID.xy);
-    if (any(greaterThanEqual(block, grid))) {
-        return;
-    }
+    block = ivec2(gl_WorkGroupID.xy);
+    pixel = gl_LocalInvocationIndex;
+    position = vec2(block * BLOCK + ivec2(gl_LocalInvocationID.xy)) + 0.5;
 
-    vec2 best;
-    float best_cost;
+    vec2 best = vec2(0.0);
+    float best_cost = 3.4e38;
     if (mode == 0) {
-        best = vec2(0.0);
-        best_cost = Cost(block, best, vec2(0.0), false);
         for (int dy = -SEARCH_RADIUS; dy <= SEARCH_RADIUS; ++dy) {
+            int count = 0;
             for (int dx = -SEARCH_RADIUS; dx <= SEARCH_RADIUS; ++dx) {
-                const vec2 v = vec2(dx, dy);
-                const float cost = Cost(block, v, vec2(0.0), false);
-                if (cost < best_cost) {
-                    best_cost = cost;
-                    best = v;
-                }
+                candidates[count++] = vec2(dx, dy);
+            }
+            if (dy == SEARCH_RADIUS && use_temporal != 0) {
+                candidates[count++] = TemporalField(block);
+            }
+            PickBest(count, vec2(0.0), false, best, best_cost);
+        }
+    } else {
+        float xs[9];
+        float ys[9];
+        int n = 0;
+        for (int dy = -1; dy <= 1; ++dy) {
+            for (int dx = -1; dx <= 1; ++dx) {
+                const vec2 v = InField(block + ivec2(dx, dy));
+                xs[n] = v.x;
+                ys[n] = v.y;
+                ++n;
+            }
+        }
+        const vec2 median = vec2(Median9(xs), Median9(ys));
+
+        const ivec2 directions[4] =
+            ivec2[4](ivec2(1, 0), ivec2(-1, 0), ivec2(0, 1), ivec2(0, -1));
+        const int spreads[2] = int[2](1, 3);
+        int count = 0;
+        candidates[count++] = InField(block);
+        candidates[count++] = median;
+        for (int s = 0; s < 2; ++s) {
+            for (int d = 0; d < 4; ++d) {
+                candidates[count++] = InField(block + directions[d] * spreads[s]);
             }
         }
         if (use_temporal != 0) {
-            const vec2 v = TemporalField(block);
-            const float cost = Cost(block, v, vec2(0.0), false);
-            if (cost < best_cost) {
-                best = v;
-            }
-        }
-        imageStore(field_out, block, vec4(best, 0.0, 0.0));
-        return;
-    }
-
-    float xs[9];
-    float ys[9];
-    int n = 0;
-    for (int dy = -1; dy <= 1; ++dy) {
-        for (int dx = -1; dx <= 1; ++dx) {
-            const vec2 v = InField(block + ivec2(dx, dy));
-            xs[n] = v.x;
-            ys[n] = v.y;
-            ++n;
-        }
-    }
-    const vec2 median = vec2(Median9(xs), Median9(ys));
-
-    best = InField(block);
-    best_cost = Cost(block, best, median, true);
-
-    const ivec2 directions[4] = ivec2[4](ivec2(1, 0), ivec2(-1, 0), ivec2(0, 1), ivec2(0, -1));
-    const int spreads[2] = int[2](1, 3);
-    for (int s = 0; s < 2; ++s) {
-        for (int d = 0; d < 4; ++d) {
-            const vec2 v = InField(block + directions[d] * spreads[s]);
-            const float cost = Cost(block, v, median, true);
-            if (cost < best_cost) {
-                best_cost = cost;
-                best = v;
-            }
-        }
-    }
-    {
-        const float cost = Cost(block, median, median, true);
-        if (cost < best_cost) {
-            best_cost = cost;
-            best = median;
-        }
-    }
-    if (use_temporal != 0) {
-        vec2 v = TemporalField(block);
-        float cost = Cost(block, v, median, true);
-        if (cost < best_cost) {
-            best_cost = cost;
-            best = v;
-        }
-        for (int s = 0; s < 2; ++s) {
-            for (int d = 0; d < 4; ++d) {
-                v = TemporalField(block + directions[d] * spreads[s]);
-                cost = Cost(block, v, median, true);
-                if (cost < best_cost) {
-                    best_cost = cost;
-                    best = v;
+            candidates[count++] = TemporalField(block);
+            for (int s = 0; s < 2; ++s) {
+                for (int d = 0; d < 4; ++d) {
+                    candidates[count++] = TemporalField(block + directions[d] * spreads[s]);
                 }
             }
         }
-    }
+        PickBest(count, median, true, best, best_cost);
 
-    const vec2 centre = best;
-    for (int dy = -1; dy <= 1; ++dy) {
-        for (int dx = -1; dx <= 1; ++dx) {
-            if (dx == 0 && dy == 0) {
-                continue;
-            }
-            const vec2 v = centre + vec2(dx, dy);
-            const float cost = Cost(block, v, median, true);
-            if (cost < best_cost) {
-                best_cost = cost;
-                best = v;
+        const vec2 centre = best;
+        count = 0;
+        for (int dy = -1; dy <= 1; ++dy) {
+            for (int dx = -1; dx <= 1; ++dx) {
+                if (dx != 0 || dy != 0) {
+                    candidates[count++] = centre + vec2(dx, dy);
+                }
             }
         }
+        PickBest(count, median, true, best, best_cost);
     }
-    imageStore(field_out, block, vec4(best, 0.0, 0.0));
+    if (pixel == 0) {
+        imageStore(field_out, block, vec4(best, 0.0, 0.0));
+    }
 }

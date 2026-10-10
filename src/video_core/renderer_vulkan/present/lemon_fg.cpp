@@ -298,8 +298,9 @@ void LemonFgChain::DispatchShared(vk::CommandBuffer cmdbuf, u64 frame_count) {
     for (size_t direction = 0; direction < 2; ++direction) {
         for (SearchStep& step : search_steps[slot][direction]) {
             step.push[9] = use_temporal;
-            Run(cmdbuf, search_pass, step.set, step.push.data(), DivCeil(step.grid.width, 8),
-                DivCeil(step.grid.height, 8));
+            // One workgroup per block.
+            Run(cmdbuf, search_pass, step.set, step.push.data(), step.grid.width,
+                step.grid.height);
         }
         const std::array<u32, 2> median_push{grid[0].width, grid[0].height};
         Run(cmdbuf, median_pass, flow_median_sets[slot][direction], median_push.data(),
@@ -333,8 +334,8 @@ void LemonFgChain::DispatchGeneration(vk::CommandBuffer cmdbuf, u64 frame_count,
 
     const std::array<u32, 5> project_push{level_size[0].width, level_size[0].height,
                                           grid[0].width, grid[0].height, Bits(t)};
-    Run(cmdbuf, project_pass, project_sets[slot], project_push.data(), DivCeil(grid[0].width, 8),
-        DivCeil(grid[0].height, 8));
+    Run(cmdbuf, project_pass, project_sets[slot], project_push.data(), grid[0].width,
+        grid[0].height);
     const std::array<u32, 2> median_push{grid[0].width, grid[0].height};
     Run(cmdbuf, median_pass, offsets_median_set, median_push.data(), DivCeil(grid[0].width, 8),
         DivCeil(grid[0].height, 8));
