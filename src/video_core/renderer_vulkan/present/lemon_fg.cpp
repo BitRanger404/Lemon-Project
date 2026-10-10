@@ -195,9 +195,13 @@ LemonFgChain::LemonFgChain(const Device& device_, MemoryAllocator& memory_alloca
         .Build(*device);
 }
 
-bool LemonFgChain::IsFormatSupported(VkFormat format) {
-    // The generate shader writes through an rgba8 storage image.
-    return format == VK_FORMAT_R8G8B8A8_UNORM;
+bool LemonFgChain::IsSupported(const Device& device_, VkFormat format) {
+    // The search sums costs with subgroup adds; the generate shader writes through an rgba8
+    // storage image.
+    return device_.IsSubgroupFeatureSupported(VK_SUBGROUP_FEATURE_BASIC_BIT) &&
+           device_.IsSubgroupFeatureSupported(VK_SUBGROUP_FEATURE_ARITHMETIC_BIT) &&
+           (device_.GetSubgroupSupportedStages() & VK_SHADER_STAGE_COMPUTE_BIT) != 0 &&
+           format == VK_FORMAT_R8G8B8A8_UNORM;
 }
 
 LemonFgChain::Pass LemonFgChain::CreatePass(const Device& device_, std::span<const u32> code,

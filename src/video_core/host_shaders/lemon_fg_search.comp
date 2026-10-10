@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Lemon frame generation: block motion search at one pyramid level. One workgroup per 8x8 block,
-// one invocation per pixel of it: each candidate vector's cost is summed across the workgroup.
+// one invocation per pixel of it: each candidate vector's cost is summed across the workgroup
+// with subgroup adds (the whole block is usually one subgroup, so no barrier at all).
 //
 // Finds, for every block, the vector v (in this level's pixels) that best matches luma A at
 // x + ka * v against luma C at x + kc * v. Forward flow (A -> C, blocks anchored on A) is
@@ -18,6 +19,8 @@
 // smooth.
 
 #version 460 core
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
@@ -46,10 +49,10 @@ const int PIXELS = BLOCK * BLOCK;
 const int SEARCH_RADIUS = 6;
 const int MAX_BATCH = 20;
 
-shared float partial[MAX_BATCH][PIXELS];
-shared float totals[MAX_BATCH];
+shared float subgroup_sums[MAX_BATCH][PIXELS];
 
 vec2 candidates[MAX_BATCH];
+float totals[MAX_BATCH];
 ivec2 block;
 uint pixel;
 vec2 position;
@@ -70,23 +73,33 @@ vec2 TemporalField(ivec2 at) {
 // Sums |A - C| over the block for candidates[0, count): totals[i], same in every invocation.
 void Evaluate(int count) {
     const vec2 inv_size = 1.0 / vec2(level_size);
+    const bool split = gl_NumSubgroups > 1;
     for (int i = 0; i < count; ++i) {
         const vec2 v = candidates[i];
         const float a =
             textureLod(sampler2D(luma_a, linear_sampler), (position + ka * v) * inv_size, 0.0).r;
         const float c =
             textureLod(sampler2D(luma_c, linear_sampler), (position + kc * v) * inv_size, 0.0).r;
-        partial[i][pixel] = abs(a - c);
-    }
-    barrier();
-    if (pixel < uint(count)) {
-        float sum = 0.0;
-        for (int j = 0; j < PIXELS; ++j) {
-            sum += partial[pixel][j];
+        totals[i] = subgroupAdd(abs(a - c));
+        if (split && subgroupElect()) {
+            subgroup_sums[i][gl_SubgroupID] = totals[i];
         }
-        totals[pixel] = sum * 255.0;
     }
-    barrier();
+    if (split) {
+        // Smaller subgroups (Mali): add up the subgroups' sums.
+        barrier();
+        for (int i = 0; i < count; ++i) {
+            float sum = 0.0;
+            for (uint j = 0; j < gl_NumSubgroups; ++j) {
+                sum += subgroup_sums[i][j];
+            }
+            totals[i] = sum;
+        }
+        barrier();
+    }
+    for (int i = 0; i < count; ++i) {
+        totals[i] *= 255.0;
+    }
 }
 
 float Penalty(vec2 v, vec2 median, bool with_median) {

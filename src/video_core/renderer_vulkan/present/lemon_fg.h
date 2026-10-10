@@ -32,8 +32,8 @@ public:
     LemonFgChain(const LemonFgChain&) = delete;
     LemonFgChain& operator=(const LemonFgChain&) = delete;
 
-    /// Whether this chain can write frames of the given format.
-    [[nodiscard]] static bool IsFormatSupported(VkFormat format);
+    /// Whether this chain can run on the device and write frames of the given format.
+    [[nodiscard]] static bool IsSupported(const Device& device, VkFormat format);
 
     void DispatchShared(vk::CommandBuffer cmdbuf, u64 frame_count);
 

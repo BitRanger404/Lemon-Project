@@ -214,7 +214,7 @@ void FrameGen::Process(const Device& device, Frame* frame, VkFormat format,
 
     // Lossless Scaling's shaders when it's installed, Lemon's own otherwise.
     use_native = !shaders->IsValid();
-    if (use_native && !LemonFgChain::IsFormatSupported(format)) {
+    if (use_native && !LemonFgChain::IsSupported(device, format)) {
         unavailable = true;
         return;
     }

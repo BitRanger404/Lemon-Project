@@ -11,6 +11,8 @@
 // pixels.
 
 #version 460 core
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
@@ -31,8 +33,7 @@ const int BLOCK = 8;
 const int PIXELS = BLOCK * BLOCK;
 const int ITERATIONS = 4;
 
-shared float partial[2][PIXELS];
-shared float totals[2];
+shared float subgroup_sums[2][PIXELS];
 
 vec2 ForwardFlow(vec2 block) {
     return textureLod(sampler2D(forward_flow, linear_sampler), (block + 0.5) / vec2(grid), 0.0).xy;
@@ -72,17 +73,23 @@ void main() {
     const vec2 backward_a = -e * (t / (1.0 - t));
     const vec2 backward_c = e;
 
-    partial[0][pixel] = PixelDiff(position, forward_a, forward_c);
-    partial[1][pixel] = PixelDiff(position, backward_a, backward_c);
-    barrier();
-    if (pixel < 2u) {
-        float sum = 0.0;
-        for (int j = 0; j < PIXELS; ++j) {
-            sum += partial[pixel][j];
+    float totals[2];
+    totals[0] = subgroupAdd(PixelDiff(position, forward_a, forward_c));
+    totals[1] = subgroupAdd(PixelDiff(position, backward_a, backward_c));
+    if (gl_NumSubgroups > 1) {
+        // Smaller subgroups (Mali): add up the subgroups' sums.
+        if (subgroupElect()) {
+            subgroup_sums[0][gl_SubgroupID] = totals[0];
+            subgroup_sums[1][gl_SubgroupID] = totals[1];
         }
-        totals[pixel] = sum;
+        barrier();
+        totals[0] = 0.0;
+        totals[1] = 0.0;
+        for (uint j = 0; j < gl_NumSubgroups; ++j) {
+            totals[0] += subgroup_sums[0][j];
+            totals[1] += subgroup_sums[1][j];
+        }
     }
-    barrier();
     if (pixel == 0u) {
         const bool use_backward = totals[1] < totals[0];
         imageStore(offsets, block,
