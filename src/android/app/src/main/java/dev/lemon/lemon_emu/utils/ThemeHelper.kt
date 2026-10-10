@@ -52,8 +52,11 @@ object ThemeHelper {
         }
 
         // The redesigned interface has one look: Lemon's own palette, shapes and fonts.
+        // Set as the activity's theme, not just applied to it: AppCompat re-applies that theme
+        // when it changes the night mode in place (EmulationActivity handles uiMode itself), and
+        // the base theme alone would bring back Material's default purple.
         if (UiMode.isModern(activity)) {
-            activity.theme.applyStyle(R.style.ThemeOverlay_Lemon_Modern, true)
+            activity.setTheme(R.style.ThemeOverlay_Lemon_Modern)
         }
     }
 
