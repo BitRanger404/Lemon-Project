@@ -282,6 +282,8 @@ if (ENABLE_LSFG)
         renderer_vulkan/present/frame_gen.h
         renderer_vulkan/present/frame_gen_pacer.cpp
         renderer_vulkan/present/frame_gen_pacer.h
+        renderer_vulkan/present/lemon_fg.cpp
+        renderer_vulkan/present/lemon_fg.h
         renderer_vulkan/present/lsfg_alpha.cpp
         renderer_vulkan/present/lsfg_alpha.h
         renderer_vulkan/present/lsfg_beta.cpp

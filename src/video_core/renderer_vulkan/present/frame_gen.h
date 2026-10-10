@@ -7,6 +7,7 @@
 
 #include "common/common_types.h"
 #include "video_core/renderer_vulkan/present/frame_gen_pacer.h"
+#include "video_core/renderer_vulkan/present/lemon_fg.h"
 #include "video_core/renderer_vulkan/present/lsfg_chain.h"
 #include "video_core/renderer_vulkan/present/lsfg_shaders.h"
 #include "video_core/vulkan_common/vulkan_memory_allocator.h"
@@ -33,12 +34,16 @@ public:
 private:
     void Rebuild(const Device& device, VkExtent2D extent, VkFormat format, f32 flow_scale);
     void DumpDebugImages(u64 count);
+    [[nodiscard]] LsfgImage& Input(u64 count);
 
     MemoryAllocator& memory_allocator;
     Scheduler& scheduler;
 
     std::optional<LsfgShaders> shaders;
     std::optional<LsfgChain> chain;
+    /// Lemon's own frame generation, when Lossless Scaling isn't installed.
+    std::optional<LemonFgChain> native;
+    bool use_native{};
     FrameGenPacer pacer;
     FrameGenPlan plan{};
     VkExtent2D peak_guest_extent{};

@@ -1,0 +1,44 @@
+// SPDX-FileCopyrightText: Copyright 2026 Lemon Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+// Lemon frame generation: draws the generated frame. Each pixel samples A and C where the
+// motion field says its content was and will be, and mixes them by the frame's time t.
+
+#version 460 core
+
+layout(local_size_x = 16, local_size_y = 8) in;
+
+layout(set = 0, binding = 0) uniform sampler linear_sampler;
+layout(set = 0, binding = 1) uniform texture2D frame_a;
+layout(set = 0, binding = 2) uniform texture2D frame_c;
+layout(set = 0, binding = 3) uniform texture2D offsets;
+layout(set = 0, binding = 4, rgba8) uniform writeonly image2D destination;
+
+layout(push_constant) uniform PushConstants {
+    ivec2 output_size;
+    ivec2 level_size;
+    ivec2 grid;
+    float t;
+};
+
+const float BLOCK = 8.0;
+
+void main() {
+    const ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(texel, output_size))) {
+        return;
+    }
+    const vec2 to_level = vec2(level_size) / vec2(output_size);
+    const vec2 position = vec2(texel) + 0.5;
+    // Block centres sit at texel centres of the offsets image: bilinear between them, so no
+    // block edges show.
+    const vec2 block = position * to_level / BLOCK;
+    const vec4 offset = textureLod(sampler2D(offsets, linear_sampler), block / vec2(grid), 0.0) /
+                        vec4(to_level, to_level);
+    const vec2 inv_output = 1.0 / vec2(output_size);
+    const vec4 a =
+        textureLod(sampler2D(frame_a, linear_sampler), (position + offset.xy) * inv_output, 0.0);
+    const vec4 c =
+        textureLod(sampler2D(frame_c, linear_sampler), (position + offset.zw) * inv_output, 0.0);
+    imageStore(destination, texel, vec4(mix(a.rgb, c.rgb, t), 1.0));
+}

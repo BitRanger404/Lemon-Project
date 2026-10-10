@@ -1493,7 +1493,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
 
             quickSettings.addDivider(container)
 
-            if (LosslessScalingHelper.isInstalled() && LosslessScalingHelper.isSupportedByGpu()) {
+            if (LosslessScalingHelper.isSupportedByGpu()) {
                 quickSettings.addFrameGen(container)
                 quickSettings.addDivider(container)
             }
