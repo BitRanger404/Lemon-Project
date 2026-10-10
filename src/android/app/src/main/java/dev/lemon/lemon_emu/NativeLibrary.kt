@@ -302,6 +302,11 @@ object NativeLibrary {
     external fun getPerfStats(): DoubleArray
 
     /**
+     * Frames handed to the display per second, generated ones included
+     */
+    external fun getPresentedFps(): Double
+
+    /**
      * Returns the number of shaders being built
      */
     external fun getShadersBuilding(): Int

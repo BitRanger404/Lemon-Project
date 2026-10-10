@@ -69,9 +69,7 @@ abstract class SettingsItem(
                 return NativeLibrary.isFirmwareAvailable()
             }
 
-            if (setting.key in frameGenKeys &&
-                !(LosslessScalingHelper.isInstalled() && LosslessScalingHelper.isSupportedByGpu())
-            ) {
+            if (setting.key in frameGenKeys && !LosslessScalingHelper.isSupportedByGpu()) {
                 return false
             }
 

@@ -203,15 +203,18 @@ void FrameGen::Process(const Device& device, Frame* frame, VkFormat format,
     }
 
     if (unavailable || !Settings::values.frame_gen.GetValue()) {
-        if (chain) {
+        if (chain || native) {
             scheduler.Finish();
             chain.reset();
+            native.reset();
         }
         warm_streak = 0;
         return;
     }
 
-    if (!shaders->IsValid()) {
+    // Lossless Scaling's shaders when it's installed, Lemon's own otherwise.
+    use_native = !shaders->IsValid();
+    if (use_native && !LemonFgChain::IsSupported(device, format)) {
         unavailable = true;
         return;
     }
@@ -226,7 +229,8 @@ void FrameGen::Process(const Device& device, Frame* frame, VkFormat format,
 
     const VkExtent2D extent{.width = frame->width, .height = frame->height};
     const f32 flow_scale = ConfiguredFlowScale(peak_guest_extent, extent);
-    if (!chain || built_extent.width != extent.width || built_extent.height != extent.height ||
+    const bool built = use_native ? native.has_value() : chain.has_value();
+    if (!built || built_extent.width != extent.width || built_extent.height != extent.height ||
         built_format != format || built_flow_scale != flow_scale) {
         Rebuild(device, extent, format, flow_scale);
     }
@@ -242,13 +246,19 @@ void FrameGen::Process(const Device& device, Frame* frame, VkFormat format,
     scheduler.RequestOutsideRenderPassOperationContext();
     scheduler.Record([this, source = *frame->image, extent, count,
                       dispatch = warm](vk::CommandBuffer cmdbuf) {
-        CopyPresentedFrame(cmdbuf, source, chain->Input(count), extent);
-        if (dispatch) {
+        CopyPresentedFrame(cmdbuf, source, Input(count), extent);
+        if (!dispatch) {
+            return;
+        }
+        if (use_native) {
+            native->DispatchShared(cmdbuf, count);
+        } else {
             chain->DispatchShared(cmdbuf, count);
         }
     });
 
-    const bool dump_requested = generated && Settings::values.frame_gen_dump_flow.GetValue();
+    const bool dump_requested =
+        generated && !use_native && Settings::values.frame_gen_dump_flow.GetValue();
     if (!dump_requested) {
         dumped = false;
     } else if (!dumped) {
@@ -270,9 +280,18 @@ size_t FrameGen::GeneratedFrameCount() const {
     return generated ? last_generations : 0;
 }
 
+LsfgImage& FrameGen::Input(u64 count) {
+    return use_native ? native->Input(count) : chain->Input(count);
+}
+
 void FrameGen::GenerateInto(const Device& device, Frame* destination, size_t generation) {
-    chain->SetTarget(device, last_generations, generation, destination->index,
-                     *destination->storage_view);
+    if (use_native) {
+        native->SetTarget(device, last_generations, generation, destination->index,
+                          *destination->storage_view);
+    } else {
+        chain->SetTarget(device, last_generations, generation, destination->index,
+                         *destination->storage_view);
+    }
 
     const VkExtent2D extent{.width = destination->width, .height = destination->height};
 
@@ -280,18 +299,28 @@ void FrameGen::GenerateInto(const Device& device, Frame* destination, size_t gen
     scheduler.Record([this, count = last_count, generation_count = last_generations, generation,
                       target = destination->index, image = *destination->image,
                       extent](vk::CommandBuffer cmdbuf) {
-        chain->DispatchGeneration(cmdbuf, count, generation_count, generation, target, image,
-                                  extent);
+        if (use_native) {
+            native->DispatchGeneration(cmdbuf, count, generation_count, generation, target, image,
+                                       extent);
+        } else {
+            chain->DispatchGeneration(cmdbuf, count, generation_count, generation, target, image,
+                                      extent);
+        }
     });
 }
 
 void FrameGen::Rebuild(const Device& device, VkExtent2D extent, VkFormat format, f32 flow_scale) {
     scheduler.Finish();
     chain.reset();
+    native.reset();
 
     built_flow_scale = flow_scale;
 
-    chain.emplace(device, memory_allocator, *shaders, extent, format, built_flow_scale);
+    if (use_native) {
+        native.emplace(device, memory_allocator, extent, format);
+    } else {
+        chain.emplace(device, memory_allocator, *shaders, extent, format, built_flow_scale);
+    }
     built_extent = extent;
     built_format = format;
     frame_count = 0;

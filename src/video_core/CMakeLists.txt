@@ -276,12 +276,15 @@ if (ENABLE_LSFG)
     target_sources(video_core PRIVATE
         frame_gen/lossless_dll.cpp
         frame_gen/lossless_dll.h
+        frame_gen/presented_frames.h
         frame_gen/lsfg_translate.cpp
         frame_gen/lsfg_translate.h
         renderer_vulkan/present/frame_gen.cpp
         renderer_vulkan/present/frame_gen.h
         renderer_vulkan/present/frame_gen_pacer.cpp
         renderer_vulkan/present/frame_gen_pacer.h
+        renderer_vulkan/present/lemon_fg.cpp
+        renderer_vulkan/present/lemon_fg.h
         renderer_vulkan/present/lsfg_alpha.cpp
         renderer_vulkan/present/lsfg_alpha.h
         renderer_vulkan/present/lsfg_beta.cpp

@@ -103,14 +103,6 @@ class SettingsFragmentPresenter(
                         isRunnable = false
                     ) {}
                 )
-            } else if (!LosslessScalingHelper.isInstalled()) {
-                add(
-                    RunnableSetting(
-                        titleId = R.string.lossless_scaling_missing,
-                        descriptionId = R.string.lossless_scaling_missing_description,
-                        isRunnable = false
-                    ) {}
-                )
             }
 
             add(BooleanSetting.RENDERER_FRAME_GEN.key)

@@ -23,6 +23,7 @@
 #include "video_core/capture.h"
 #include "video_core/gpu.h"
 #include "video_core/present.h"
+#include "video_core/frame_gen/presented_frames.h"
 #include "video_core/renderer_vulkan/present/util.h"
 #ifdef HAS_RESHADE
 #include "video_core/post_processing/fx_chain.h"
@@ -232,12 +233,14 @@ void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebu
         frame_gen.GenerateInto(device, generated, generation);
         scheduler.Flush(*generated->render_ready);
         present_manager.Present(generated);
+        VideoCore::FrameGen::presented_frames.fetch_add(1, std::memory_order_relaxed);
     }
 #endif
 
     scheduler.Flush(*frame->render_ready);
 
     present_manager.Present(frame);
+    VideoCore::FrameGen::presented_frames.fetch_add(1, std::memory_order_relaxed);
 #ifdef HAS_LSFG
     scheduler.DispatchWork();
 #endif
