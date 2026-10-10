@@ -46,6 +46,7 @@ set(SHADER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/lemon_fg_median.comp
     ${CMAKE_CURRENT_SOURCE_DIR}/lemon_fg_project.comp
     ${CMAKE_CURRENT_SOURCE_DIR}/lemon_fg_search.comp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lemon_fg_still.comp
     ${CMAKE_CURRENT_SOURCE_DIR}/opengl_convert_s8d24.comp
     ${CMAKE_CURRENT_SOURCE_DIR}/opengl_copy_bc4.comp
     ${CMAKE_CURRENT_SOURCE_DIR}/opengl_fidelityfx_fsr.frag

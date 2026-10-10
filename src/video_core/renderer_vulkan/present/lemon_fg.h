@@ -18,9 +18,10 @@ class Device;
 /// Lemon's own frame generation, used when there is no Lossless Scaling to borrow shaders from.
 ///
 /// For every presented frame: its luma at a quarter of the resolution, as a 3-level pyramid;
-/// block motion between the previous frame (A) and this one (C), both ways, coarse to fine, each
-/// block trying its neighbours' and the previous pair's vectors (3DRS). For every generated
-/// frame at time t: that motion projected to t, and A and C sampled along it and mixed.
+/// block motion from the previous frame (A) to this one (C), coarse to fine, each block trying
+/// its neighbours' and the previous pair's vectors (3DRS); a mask of what stays still on screen
+/// (HUD). For every generated frame at time t: that motion projected to t, and A and C sampled
+/// along it and mixed, still content kept in place.
 /// Same interface as LsfgChain, so FrameGen drives either.
 class LemonFgChain {
 public:
@@ -59,11 +60,13 @@ private:
     /// One recorded step of the motion search: a descriptor set and its push constants.
     struct SearchStep {
         VkDescriptorSet set{};
-        std::array<u32, 13> push{};
+        std::array<u32, 11> push{};
         VkExtent2D grid{};
     };
 
-    static constexpr size_t SEARCH_STEPS = 3 + 2 * (LEVELS - 1); // coarsest: init + 2 passes
+    /// Coarsest level: exhaustive + 2 passes; middle levels: 2 passes; finest: 1 pass.
+    static constexpr size_t SEARCH_STEPS = 3 + 2 * (LEVELS - 2) + 1;
+    static constexpr size_t STILL_PASSES = 4;
 
     Pass CreatePass(const Device& device, std::span<const u32> code,
                     std::initializer_list<VkDescriptorType> bindings, u32 push_size);
@@ -74,6 +77,7 @@ private:
     void InitializeImages(vk::CommandBuffer cmdbuf);
 
     VkExtent2D extent;
+    VkExtent2D still_size{};
     std::array<VkExtent2D, LEVELS> level_size{};
     std::array<VkExtent2D, LEVELS> grid{};
 
@@ -85,23 +89,28 @@ private:
     Pass search_pass;
     Pass median_pass;
     Pass project_pass;
+    Pass still_pass;
     Pass generate_pass;
 
     std::array<LsfgImage, 2> frames;
     std::array<std::array<LsfgImage, LEVELS>, 2> pyramid;
-    /// Ping-pong search fields per direction and level.
-    std::array<std::array<std::array<LsfgImage, 2>, LEVELS>, 2> fields;
-    /// Final, median-filtered flow per direction, for the pair ending at each frame slot. Also the
-    /// temporal candidates of the next pair.
-    std::array<std::array<LsfgImage, 2>, 2> flows;
+    /// Ping-pong search fields per level.
+    std::array<std::array<LsfgImage, 2>, LEVELS> fields;
+    /// Final, median-filtered flow of the pair ending at each frame slot. Also the temporal
+    /// candidates of the next pair.
+    std::array<LsfgImage, 2> flows;
     LsfgImage offsets;
     LsfgImage offsets_filtered;
+    /// Ping-pong still masks; the last pass leaves the final one in still_masks[1].
+    std::array<LsfgImage, 2> still_masks;
 
     std::array<VkDescriptorSet, 2> luma_sets{};
     std::array<std::array<VkDescriptorSet, LEVELS - 1>, 2> down_sets{};
-    /// [slot][direction][step], with and without temporal candidates.
-    std::array<std::array<std::array<SearchStep, SEARCH_STEPS>, 2>, 2> search_steps{};
-    std::array<std::array<VkDescriptorSet, 2>, 2> flow_median_sets{};
+    /// [slot][step]
+    std::array<std::array<SearchStep, SEARCH_STEPS>, 2> search_steps{};
+    std::array<VkDescriptorSet, 2> flow_median_sets{};
+    /// [slot][pass]
+    std::array<std::array<VkDescriptorSet, STILL_PASSES>, 2> still_sets{};
     std::array<VkDescriptorSet, 2> project_sets{};
     VkDescriptorSet offsets_median_set{};
     std::array<std::array<VkDescriptorSet, LSFG_MAX_TARGETS>, 2> generate_sets{};

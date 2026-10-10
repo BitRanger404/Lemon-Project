@@ -2,97 +2,38 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Lemon frame generation: motion of the frame to generate, at time t between A (0) and C (1).
-// One workgroup per 8x8 block of the motion search resolution, one invocation per pixel of it.
+// One invocation per 8x8 block of the motion search resolution.
 //
-// Forward flow u_f (A(x) ~ C(x + u_f)) gives the displacement d from A, d = t * u_f(x - d),
-// solved by fixed-point iteration; backward flow u_b (C(x) ~ A(x + u_b)) gives the displacement
-// e from C, e = -(1 - t) * u_b(x + e). Each block keeps whichever of the two projections A and C
-// agree on best. Output: where to sample A (xy) and C (zw), as offsets in search resolution
-// pixels.
+// The flow u (A(x) ~ C(x + u)) gives the displacement d from A of what the generated frame
+// shows at x: d = t * u(x - d), solved by fixed-point iteration. Output: where to sample A (xy)
+// and C (zw), as offsets in search resolution pixels.
 
 #version 460 core
-#extension GL_KHR_shader_subgroup_basic : require
-#extension GL_KHR_shader_subgroup_arithmetic : require
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
 layout(set = 0, binding = 0) uniform sampler linear_sampler;
-layout(set = 0, binding = 1) uniform texture2D luma_a;
-layout(set = 0, binding = 2) uniform texture2D luma_c;
-layout(set = 0, binding = 3) uniform texture2D forward_flow;
-layout(set = 0, binding = 4) uniform texture2D backward_flow;
-layout(set = 0, binding = 5, rgba16f) uniform writeonly image2D offsets;
+layout(set = 0, binding = 1) uniform texture2D flow;
+layout(set = 0, binding = 2, rgba16f) uniform writeonly image2D offsets;
 
 layout(push_constant) uniform PushConstants {
-    ivec2 level_size;
     ivec2 grid;
     float t;
 };
 
-const int BLOCK = 8;
-const int PIXELS = BLOCK * BLOCK;
+const float BLOCK = 8.0;
 const int ITERATIONS = 4;
 
-shared float subgroup_sums[2][PIXELS];
-
-vec2 ForwardFlow(vec2 block) {
-    return textureLod(sampler2D(forward_flow, linear_sampler), (block + 0.5) / vec2(grid), 0.0).xy;
-}
-
-vec2 BackwardFlow(vec2 block) {
-    return textureLod(sampler2D(backward_flow, linear_sampler), (block + 0.5) / vec2(grid), 0.0)
-        .xy;
-}
-
-float PixelDiff(vec2 position, vec2 offset_a, vec2 offset_c) {
-    const vec2 inv_size = 1.0 / vec2(level_size);
-    const float a =
-        textureLod(sampler2D(luma_a, linear_sampler), (position + offset_a) * inv_size, 0.0).r;
-    const float c =
-        textureLod(sampler2D(luma_c, linear_sampler), (position + offset_c) * inv_size, 0.0).r;
-    return abs(a - c);
-}
-
 void main() {
-    const ivec2 block = ivec2(gl_WorkGroupID.xy);
-    const uint pixel = gl_LocalInvocationIndex;
-    const vec2 position = vec2(block * BLOCK + ivec2(gl_LocalInvocationID.xy)) + 0.5;
-    const vec2 centre = vec2(block);
-
+    const ivec2 block = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(block, grid))) {
+        return;
+    }
+    const vec2 centre = vec2(block) + 0.5;
     vec2 d = vec2(0.0);
     for (int i = 0; i < ITERATIONS; ++i) {
-        d = t * ForwardFlow(centre - d / float(BLOCK));
+        const vec2 uv = (centre - d / BLOCK) / vec2(grid);
+        d = t * textureLod(sampler2D(flow, linear_sampler), uv, 0.0).xy;
     }
-    const vec2 forward_a = -d;
-    const vec2 forward_c = d * ((1.0 - t) / t);
-
-    vec2 e = vec2(0.0);
-    for (int i = 0; i < ITERATIONS; ++i) {
-        e = -(1.0 - t) * BackwardFlow(centre + e / float(BLOCK));
-    }
-    const vec2 backward_a = -e * (t / (1.0 - t));
-    const vec2 backward_c = e;
-
-    float totals[2];
-    totals[0] = subgroupAdd(PixelDiff(position, forward_a, forward_c));
-    totals[1] = subgroupAdd(PixelDiff(position, backward_a, backward_c));
-    if (gl_NumSubgroups > 1) {
-        // Smaller subgroups (Mali): add up the subgroups' sums.
-        if (subgroupElect()) {
-            subgroup_sums[0][gl_SubgroupID] = totals[0];
-            subgroup_sums[1][gl_SubgroupID] = totals[1];
-        }
-        barrier();
-        totals[0] = 0.0;
-        totals[1] = 0.0;
-        for (uint j = 0; j < gl_NumSubgroups; ++j) {
-            totals[0] += subgroup_sums[0][j];
-            totals[1] += subgroup_sums[1][j];
-        }
-    }
-    if (pixel == 0u) {
-        const bool use_backward = totals[1] < totals[0];
-        imageStore(offsets, block,
-                   use_backward ? vec4(backward_a, backward_c) : vec4(forward_a, forward_c));
-    }
+    imageStore(offsets, block, vec4(-d, d * ((1.0 - t) / t)));
 }

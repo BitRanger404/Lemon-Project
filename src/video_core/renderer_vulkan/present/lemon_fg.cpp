@@ -9,6 +9,7 @@
 #include "video_core/host_shaders/lemon_fg_median_comp_spv.h"
 #include "video_core/host_shaders/lemon_fg_project_comp_spv.h"
 #include "video_core/host_shaders/lemon_fg_search_comp_spv.h"
+#include "video_core/host_shaders/lemon_fg_still_comp_spv.h"
 #include "video_core/renderer_vulkan/present/lemon_fg.h"
 #include "video_core/renderer_vulkan/present/util.h"
 #include "video_core/vulkan_common/vulkan_device.h"
@@ -59,6 +60,8 @@ LemonFgChain::LemonFgChain(const Device& device_, MemoryAllocator& memory_alloca
         grid[level] = GridOf(level_size[level]);
     }
 
+    still_size = {std::max(1u, DivCeil(extent.width, 2)), std::max(1u, DivCeil(extent.height, 2))};
+
     descriptor_pool = CreateWrappedDescriptorPool(
         *device, 1024, 256,
         {VK_DESCRIPTOR_TYPE_SAMPLER, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
@@ -73,14 +76,16 @@ LemonFgChain::LemonFgChain(const Device& device_, MemoryAllocator& memory_alloca
                            sizeof(u32) * 5);
     search_pass = CreatePass(*device, LEMON_FG_SEARCH_COMP_SPV,
                              {SAMPLER, SAMPLED, SAMPLED, SAMPLED, SAMPLED, STORAGE},
-                             sizeof(u32) * 13);
+                             sizeof(u32) * 11);
     median_pass = CreatePass(*device, LEMON_FG_MEDIAN_COMP_SPV, {SAMPLER, SAMPLED, STORAGE},
                              sizeof(u32) * 2);
-    project_pass = CreatePass(*device, LEMON_FG_PROJECT_COMP_SPV,
-                              {SAMPLER, SAMPLED, SAMPLED, SAMPLED, SAMPLED, STORAGE},
-                              sizeof(u32) * 5);
-    generate_pass = CreatePass(*device, LEMON_FG_GENERATE_COMP_SPV,
-                               {SAMPLER, SAMPLED, SAMPLED, SAMPLED, STORAGE}, sizeof(u32) * 7);
+    project_pass = CreatePass(*device, LEMON_FG_PROJECT_COMP_SPV, {SAMPLER, SAMPLED, STORAGE},
+                              sizeof(u32) * 3);
+    still_pass = CreatePass(*device, LEMON_FG_STILL_COMP_SPV, {SAMPLER, SAMPLED, SAMPLED, STORAGE},
+                            sizeof(u32) * 5);
+    generate_pass =
+        CreatePass(*device, LEMON_FG_GENERATE_COMP_SPV,
+                   {SAMPLER, SAMPLED, SAMPLED, SAMPLED, SAMPLED, STORAGE}, sizeof(u32) * 9);
 
     for (auto& frame : frames) {
         frame = LsfgImage(*device, memory_allocator, extent, format);
@@ -90,20 +95,19 @@ LemonFgChain::LemonFgChain(const Device& device_, MemoryAllocator& memory_alloca
             slot[level] = LsfgImage(*device, memory_allocator, level_size[level], WORK_FORMAT);
         }
     }
-    for (auto& direction : fields) {
-        for (size_t level = 0; level < LEVELS; ++level) {
-            for (auto& image : direction[level]) {
-                image = LsfgImage(*device, memory_allocator, grid[level], WORK_FORMAT);
-            }
+    for (size_t level = 0; level < LEVELS; ++level) {
+        for (auto& image : fields[level]) {
+            image = LsfgImage(*device, memory_allocator, grid[level], WORK_FORMAT);
         }
     }
-    for (auto& direction : flows) {
-        for (auto& image : direction) {
-            image = LsfgImage(*device, memory_allocator, grid[0], WORK_FORMAT);
-        }
+    for (auto& image : flows) {
+        image = LsfgImage(*device, memory_allocator, grid[0], WORK_FORMAT);
     }
     offsets = LsfgImage(*device, memory_allocator, grid[0], WORK_FORMAT);
     offsets_filtered = LsfgImage(*device, memory_allocator, grid[0], WORK_FORMAT);
+    for (auto& image : still_masks) {
+        image = LsfgImage(*device, memory_allocator, still_size, WORK_FORMAT);
+    }
 
     for (size_t slot = 0; slot < 2; ++slot) {
         luma_sets[slot] = AllocateSet(luma_pass);
@@ -122,65 +126,82 @@ LemonFgChain::LemonFgChain(const Device& device_, MemoryAllocator& memory_alloca
                 .Build(*device);
         }
 
-        // The pair ending at `slot`: A is the other slot's frame, C this one's.
+        // The pair ending at this slot: A is the other slot's frame, C this one's.
         const auto& luma_a = pyramid[1 - slot];
         const auto& luma_c = pyramid[slot];
-        for (size_t direction = 0; direction < 2; ++direction) {
-            const f32 ka = direction == 0 ? 0.0f : 1.0f;
-            const f32 kc = direction == 0 ? 1.0f : 0.0f;
-            auto& steps = search_steps[slot][direction];
-            size_t next = 0;
-            const auto add_step = [&](size_t level, u32 mode, const LsfgImage& in,
-                                      VkExtent2D in_grid, LsfgImage& out) {
-                SearchStep& step = steps[next++];
-                step.set = AllocateSet(search_pass);
-                step.grid = grid[level];
-                LsfgDescriptorWriter(step.set)
-                    .AddSampler(*sampler)
-                    .AddSampledImage(luma_a[level])
-                    .AddSampledImage(luma_c[level])
-                    .AddSampledImage(in)
-                    .AddSampledImage(flows[direction][1 - slot])
-                    .AddStorageImage(out)
-                    .Build(*device);
-                step.push = {
-                    level_size[level].width, level_size[level].height,
-                    grid[level].width,       grid[level].height,
-                    in_grid.width,           in_grid.height,
-                    Bits(ka),                Bits(kc),
-                    mode,                    0, // use_temporal, set when recording
-                    Bits(1.0f / static_cast<f32>(1u << level)),
-                    Bits(ZERO_BIAS),         Bits(SMOOTH_BIAS),
-                };
-            };
-            auto& coarsest = fields[direction][LEVELS - 1];
-            add_step(LEVELS - 1, MODE_EXHAUSTIVE, coarsest[1], grid[LEVELS - 1], coarsest[0]);
-            add_step(LEVELS - 1, MODE_REFINE, coarsest[0], grid[LEVELS - 1], coarsest[1]);
-            add_step(LEVELS - 1, MODE_REFINE, coarsest[1], grid[LEVELS - 1], coarsest[0]);
-            for (size_t level = LEVELS - 1; level-- > 0;) {
-                const LsfgImage& coarser =
-                    level + 1 == LEVELS - 1 ? coarsest[0] : fields[direction][level + 1][1];
-                auto& current = fields[direction][level];
-                add_step(level, MODE_FROM_COARSER, coarser, grid[level + 1], current[0]);
-                add_step(level, MODE_REFINE, current[0], grid[level], current[1]);
-            }
-
-            VkDescriptorSet& median = flow_median_sets[slot][direction];
-            median = AllocateSet(median_pass);
-            LsfgDescriptorWriter(median)
+        auto& steps = search_steps[slot];
+        size_t next = 0;
+        const auto add_step = [&](size_t level, u32 mode, const LsfgImage& in, VkExtent2D in_grid,
+                                  const LsfgImage& out) {
+            SearchStep& step = steps[next++];
+            step.set = AllocateSet(search_pass);
+            step.grid = grid[level];
+            LsfgDescriptorWriter(step.set)
                 .AddSampler(*sampler)
-                .AddSampledImage(fields[direction][0][1])
-                .AddStorageImage(flows[direction][slot])
+                .AddSampledImage(luma_a[level])
+                .AddSampledImage(luma_c[level])
+                .AddSampledImage(in)
+                .AddSampledImage(flows[1 - slot])
+                .AddStorageImage(out)
+                .Build(*device);
+            step.push = {
+                level_size[level].width,
+                level_size[level].height,
+                grid[level].width,
+                grid[level].height,
+                in_grid.width,
+                in_grid.height,
+                mode,
+                0, // use_temporal, set when recording
+                Bits(1.0f / static_cast<f32>(1u << level)),
+                Bits(ZERO_BIAS),
+                Bits(SMOOTH_BIAS),
+            };
+        };
+        // Coarsest level: exhaustive, then two passes; middle levels: two passes; the finest:
+        // one (a second one gained little on captured gameplay).
+        auto& coarsest = fields[LEVELS - 1];
+        add_step(LEVELS - 1, MODE_EXHAUSTIVE, coarsest[1], grid[LEVELS - 1], coarsest[0]);
+        add_step(LEVELS - 1, MODE_REFINE, coarsest[0], grid[LEVELS - 1], coarsest[1]);
+        add_step(LEVELS - 1, MODE_REFINE, coarsest[1], grid[LEVELS - 1], coarsest[0]);
+        const LsfgImage* result = &coarsest[0];
+        for (size_t level = LEVELS - 1; level-- > 0;) {
+            auto& current = fields[level];
+            add_step(level, MODE_FROM_COARSER, *result, grid[level + 1], current[0]);
+            result = &current[0];
+            if (level > 0) {
+                add_step(level, MODE_REFINE, current[0], grid[level], current[1]);
+                result = &current[1];
+            }
+        }
+
+        flow_median_sets[slot] = AllocateSet(median_pass);
+        LsfgDescriptorWriter(flow_median_sets[slot])
+            .AddSampler(*sampler)
+            .AddSampledImage(*result)
+            .AddStorageImage(flows[slot])
+            .Build(*device);
+
+        // Still mask: raw from the frames, then erode, open and grow, ping-ponging so the final
+        // one lands in still_masks[1].
+        for (size_t pass = 0; pass < STILL_PASSES; ++pass) {
+            VkDescriptorSet& set = still_sets[slot][pass];
+            set = AllocateSet(still_pass);
+            const LsfgImage& in_a =
+                pass == 0 ? frames[1 - slot] : still_masks[pass % 2 == 1 ? 0 : 1];
+            const LsfgImage& in_c = pass == 0 ? frames[slot] : in_a;
+            LsfgDescriptorWriter(set)
+                .AddSampler(*sampler)
+                .AddSampledImage(in_a)
+                .AddSampledImage(in_c)
+                .AddStorageImage(still_masks[pass % 2 == 0 ? 0 : 1])
                 .Build(*device);
         }
 
         project_sets[slot] = AllocateSet(project_pass);
         LsfgDescriptorWriter(project_sets[slot])
             .AddSampler(*sampler)
-            .AddSampledImage(luma_a[0])
-            .AddSampledImage(luma_c[0])
-            .AddSampledImage(flows[0][slot])
-            .AddSampledImage(flows[1][slot])
+            .AddSampledImage(flows[slot])
             .AddStorageImage(offsets)
             .Build(*device);
         for (auto& set : generate_sets[slot]) {
@@ -260,15 +281,14 @@ void LemonFgChain::InitializeImages(vk::CommandBuffer cmdbuf) {
     for (auto& slot : pyramid) {
         barriers.ReadToWriteAll(slot);
     }
-    for (auto& direction : fields) {
-        for (auto& level : direction) {
-            barriers.ReadToWriteAll(level);
-        }
+    for (auto& level : fields) {
+        barriers.ReadToWriteAll(level);
     }
-    for (auto& direction : flows) {
-        barriers.ReadToWriteAll(direction);
-    }
-    barriers.ReadToWrite(offsets).ReadToWrite(offsets_filtered).Build();
+    barriers.ReadToWriteAll(flows)
+        .ReadToWriteAll(still_masks)
+        .ReadToWrite(offsets)
+        .ReadToWrite(offsets_filtered)
+        .Build();
     initialized = true;
 }
 
@@ -299,18 +319,22 @@ void LemonFgChain::DispatchShared(vk::CommandBuffer cmdbuf, u64 frame_count) {
     last_pyramid = frame_count;
 
     const u32 use_temporal = last_flow + 1 == frame_count ? 1 : 0;
-    for (size_t direction = 0; direction < 2; ++direction) {
-        for (SearchStep& step : search_steps[slot][direction]) {
-            step.push[9] = use_temporal;
-            // One workgroup per block.
-            Run(cmdbuf, search_pass, step.set, step.push.data(), step.grid.width,
-                step.grid.height);
-        }
-        const std::array<u32, 2> median_push{grid[0].width, grid[0].height};
-        Run(cmdbuf, median_pass, flow_median_sets[slot][direction], median_push.data(),
-            DivCeil(grid[0].width, 8), DivCeil(grid[0].height, 8));
+    for (SearchStep& step : search_steps[slot]) {
+        step.push[7] = use_temporal;
+        // One workgroup per block.
+        Run(cmdbuf, search_pass, step.set, step.push.data(), step.grid.width, step.grid.height);
     }
+    const std::array<u32, 2> median_push{grid[0].width, grid[0].height};
+    Run(cmdbuf, median_pass, flow_median_sets[slot], median_push.data(),
+        DivCeil(grid[0].width, 8), DivCeil(grid[0].height, 8));
     last_flow = frame_count;
+
+    for (u32 pass = 0; pass < STILL_PASSES; ++pass) {
+        const std::array<u32, 5> still_push{still_size.width, still_size.height, extent.width,
+                                            extent.height, pass};
+        Run(cmdbuf, still_pass, still_sets[slot][pass], still_push.data(),
+            DivCeil(still_size.width, 8), DivCeil(still_size.height, 8));
+    }
 }
 
 void LemonFgChain::SetTarget(const Device& device_, size_t, size_t, u32 target,
@@ -325,6 +349,7 @@ void LemonFgChain::SetTarget(const Device& device_, size_t, size_t, u32 target,
             .AddSampledImage(frames[1 - slot])
             .AddSampledImage(frames[slot])
             .AddSampledImage(offsets_filtered)
+            .AddSampledImage(still_masks[1])
             .AddStorageView(view)
             .Build(device_);
     }
@@ -336,19 +361,18 @@ void LemonFgChain::DispatchGeneration(vk::CommandBuffer cmdbuf, u64 frame_count,
     const size_t slot = frame_count % 2;
     const f32 t = LsfgTimestamp(generation, generation_count);
 
-    const std::array<u32, 5> project_push{level_size[0].width, level_size[0].height,
-                                          grid[0].width, grid[0].height, Bits(t)};
-    Run(cmdbuf, project_pass, project_sets[slot], project_push.data(), grid[0].width,
-        grid[0].height);
+    const std::array<u32, 3> project_push{grid[0].width, grid[0].height, Bits(t)};
+    Run(cmdbuf, project_pass, project_sets[slot], project_push.data(), DivCeil(grid[0].width, 8),
+        DivCeil(grid[0].height, 8));
     const std::array<u32, 2> median_push{grid[0].width, grid[0].height};
     Run(cmdbuf, median_pass, offsets_median_set, median_push.data(), DivCeil(grid[0].width, 8),
         DivCeil(grid[0].height, 8));
 
     LsfgBarriers(cmdbuf).DiscardToWrite(image).Build();
-    const std::array<u32, 7> generate_push{target_extent.width, target_extent.height,
-                                           level_size[0].width, level_size[0].height,
-                                           grid[0].width,       grid[0].height,
-                                           Bits(t)};
+    const std::array<u32, 9> generate_push{
+        target_extent.width, target_extent.height, level_size[0].width, level_size[0].height,
+        grid[0].width,       grid[0].height,       still_size.width,    still_size.height,
+        Bits(t)};
     Run(cmdbuf, generate_pass, generate_sets[slot][target], generate_push.data(),
         DivCeil(target_extent.width, 16), DivCeil(target_extent.height, 8));
 

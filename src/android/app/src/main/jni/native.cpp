@@ -103,6 +103,7 @@ extern "C" {
 #include "video_core/renderer_vulkan/renderer_vulkan.h"
 #include "video_core/capture.h"
 #include "video_core/textures/decoders.h"
+#include "video_core/frame_gen/presented_frames.h"
 #include "video_core/vulkan_common/vulkan_instance.h"
 #include "video_core/vulkan_common/vulkan_surface.h"
 #include "video_core/shader_notify.h"
@@ -1448,6 +1449,26 @@ jdoubleArray Java_dev_lemon_lemon_1emu_NativeLibrary_getPerfStats(JNIEnv* env, j
     }
 
     return j_stats;
+}
+
+jdouble Java_dev_lemon_lemon_1emu_NativeLibrary_getPresentedFps(JNIEnv* env, jclass clazz) {
+    // Frames handed to the display per second, generated ones included, measured over at least
+    // half a second between calls.
+    using Clock = std::chrono::steady_clock;
+    static u64 last_count = 0;
+    static Clock::time_point last_time{};
+    static double rate = 0.0;
+    const Clock::time_point now = Clock::now();
+    const u64 count = VideoCore::FrameGen::presented_frames.load(std::memory_order_relaxed);
+    const double elapsed = std::chrono::duration<double>(now - last_time).count();
+    if (elapsed >= 0.5) {
+        rate = last_time == Clock::time_point{}
+                   ? 0.0
+                   : static_cast<double>(count - last_count) / elapsed;
+        last_count = count;
+        last_time = now;
+    }
+    return rate;
 }
 
 jint Java_dev_lemon_lemon_1emu_NativeLibrary_getShadersBuilding(JNIEnv* env, jclass clazz) {

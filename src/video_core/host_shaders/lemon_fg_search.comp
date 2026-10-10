@@ -1,19 +1,16 @@
 // SPDX-FileCopyrightText: Copyright 2026 Lemon Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Lemon frame generation: block motion search at one pyramid level. One workgroup per 8x8 block,
-// one invocation per pixel of it: each candidate vector's cost is summed across the workgroup
-// with subgroup adds (the whole block is usually one subgroup, so no barrier at all).
+// Lemon frame generation: block motion search at one pyramid level, A -> C (blocks anchored on
+// A: A(x) ~ C(x + v)). One workgroup per 8x8 block, one invocation per pixel of it.
 //
-// Finds, for every block, the vector v (in this level's pixels) that best matches luma A at
-// x + ka * v against luma C at x + kc * v. Forward flow (A -> C, blocks anchored on A) is
-// ka = 0, kc = 1; backward (C -> A, anchored on C) is ka = 1, kc = 0.
-//
-// mode 0: coarsest level, exhaustive search of +-SEARCH_RADIUS pixels (plus the temporal vector).
-// mode 1: first pass of a finer level, starting from the coarser level's result scaled by 2.
-// mode 2: further passes, starting from the previous pass's result.
-// Passes 1 and 2 try the neighbours' vectors (at distance 1 and 3), the neighbourhood median and
-// the previous frame pair's vectors, then refine the winner by +-1 pixel (3DRS-style).
+// mode 0: coarsest level, exhaustive search of +-SEARCH_RADIUS pixels plus the previous pair's
+//         vector. Each invocation scores whole candidates on its own, then the cheapest wins.
+// mode 1: a finer level, starting from the coarser level's result scaled by 2.
+// mode 2: a further pass at the same level, starting from the previous pass's result.
+// Modes 1 and 2 try the neighbours' vectors (at distance 1 and 3), the neighbourhood median and
+// the previous pair's vector, then refine the winner by +-1 pixel (3DRS-style); each candidate's
+// cost is summed across the block with subgroup adds (usually one subgroup, so no barrier).
 // The cost is the sum of absolute differences (0-255 scale) plus penalties for long vectors
 // and for vectors far from the neighbourhood median, which keep flat areas still and the field
 // smooth.
@@ -37,8 +34,6 @@ layout(push_constant) uniform PushConstants {
     ivec2 level_size;
     ivec2 grid;
     ivec2 in_grid;
-    float ka;
-    float kc;
     int mode;
     int use_temporal;
     float temporal_scale;
@@ -49,14 +44,17 @@ layout(push_constant) uniform PushConstants {
 const int BLOCK = 8;
 const int PIXELS = BLOCK * BLOCK;
 const int SEARCH_RADIUS = 6;
+const int SEARCH_SIDE = SEARCH_RADIUS * 2 + 1;
+const int EXHAUSTIVE_CANDIDATES = SEARCH_SIDE * SEARCH_SIDE + 1; // + the temporal vector
+const int CANDIDATES_PER_INVOCATION = (EXHAUSTIVE_CANDIDATES + PIXELS - 1) / PIXELS;
 
 shared float subgroup_sums[PIXELS];
+shared float exhaustive_costs[PIXELS * CANDIDATES_PER_INVOCATION];
 
 ivec2 block;
 vec2 position;
 vec2 inv_size;
 vec2 median;
-bool with_median;
 vec2 best;
 float best_cost;
 
@@ -68,18 +66,29 @@ vec2 InField(ivec2 at) {
     return texelFetch(sampler2D(field_in, linear_sampler), clamp(at, ivec2(0), in_grid - 1), 0).xy;
 }
 
-vec2 TemporalField(ivec2 at) {
-    const vec2 uv = (vec2(clamp(at, ivec2(0), grid - 1)) + 0.5) / vec2(grid);
+vec2 TemporalField() {
+    const vec2 uv = (vec2(block) + 0.5) / vec2(grid);
     return textureLod(sampler2D(temporal, linear_sampler), uv, 0.0).xy * temporal_scale;
+}
+
+float PixelDiff(vec2 at, vec2 v) {
+    const float a = textureLod(sampler2D(luma_a, linear_sampler), at * inv_size, 0.0).r;
+    const float c = textureLod(sampler2D(luma_c, linear_sampler), (at + v) * inv_size, 0.0).r;
+    return abs(a - c);
+}
+
+float Penalty(vec2 v, bool with_median) {
+    float penalty = zero_bias * float(BLOCK) * (abs(v.x) + abs(v.y));
+    if (with_median) {
+        const vec2 d = abs(v - median);
+        penalty += smooth_bias * float(BLOCK) * (d.x + d.y);
+    }
+    return penalty;
 }
 
 // |A - C| summed over the block, the same in every invocation.
 float BlockSad(vec2 v) {
-    const float a =
-        textureLod(sampler2D(luma_a, linear_sampler), (position + ka * v) * inv_size, 0.0).r;
-    const float c =
-        textureLod(sampler2D(luma_c, linear_sampler), (position + kc * v) * inv_size, 0.0).r;
-    float sum = subgroupAdd(abs(a - c));
+    float sum = subgroupAdd(PixelDiff(position, v));
     if (gl_NumSubgroups > 1) {
         // Smaller subgroups (Mali): add up the subgroups' sums.
         if (subgroupElect()) {
@@ -96,15 +105,18 @@ float BlockSad(vec2 v) {
 }
 
 void Try(vec2 v) {
-    float cost = BlockSad(v) + zero_bias * float(BLOCK) * (abs(v.x) + abs(v.y));
-    if (with_median) {
-        const vec2 d = abs(v - median);
-        cost += smooth_bias * float(BLOCK) * (d.x + d.y);
-    }
+    const float cost = BlockSad(v) + Penalty(v, true);
     if (cost < best_cost) {
         best_cost = cost;
         best = v;
     }
+}
+
+vec2 ExhaustiveCandidate(int index) {
+    if (index == EXHAUSTIVE_CANDIDATES - 1) {
+        return TemporalField();
+    }
+    return vec2(index % SEARCH_SIDE - SEARCH_RADIUS, index / SEARCH_SIDE - SEARCH_RADIUS);
 }
 
 void Sort2(inout vec2 a, inout vec2 b) {
@@ -129,55 +141,68 @@ void main() {
     block = ivec2(gl_WorkGroupID.xy);
     position = vec2(block * BLOCK + ivec2(gl_LocalInvocationID.xy)) + 0.5;
     inv_size = 1.0 / vec2(level_size);
-    best = vec2(0.0);
-    best_cost = 3.4e38;
+    const uint invocation = gl_LocalInvocationIndex;
 
     if (mode == 0) {
-        with_median = false;
-        for (int dy = -SEARCH_RADIUS; dy <= SEARCH_RADIUS; ++dy) {
-            for (int dx = -SEARCH_RADIUS; dx <= SEARCH_RADIUS; ++dx) {
-                Try(vec2(dx, dy));
-            }
-        }
-        if (use_temporal != 0) {
-            Try(TemporalField(block));
-        }
-    } else {
-        const vec2 own = InField(block);
-        median = Median9(InField(block + ivec2(-1, -1)), InField(block + ivec2(0, -1)),
-                         InField(block + ivec2(1, -1)), InField(block + ivec2(-1, 0)), own,
-                         InField(block + ivec2(1, 0)), InField(block + ivec2(-1, 1)),
-                         InField(block + ivec2(0, 1)), InField(block + ivec2(1, 1)));
-        with_median = true;
-
-        Try(own);
-        Try(median);
-        for (int s = 1; s <= 3; s += 2) {
-            Try(InField(block + ivec2(s, 0)));
-            Try(InField(block + ivec2(-s, 0)));
-            Try(InField(block + ivec2(0, s)));
-            Try(InField(block + ivec2(0, -s)));
-        }
-        if (use_temporal != 0) {
-            Try(TemporalField(block));
-            for (int s = 1; s <= 3; s += 2) {
-                Try(TemporalField(block + ivec2(s, 0)));
-                Try(TemporalField(block + ivec2(-s, 0)));
-                Try(TemporalField(block + ivec2(0, s)));
-                Try(TemporalField(block + ivec2(0, -s)));
-            }
-        }
-
-        const vec2 centre = best;
-        for (int dy = -1; dy <= 1; ++dy) {
-            for (int dx = -1; dx <= 1; ++dx) {
-                if (dx != 0 || dy != 0) {
-                    Try(centre + vec2(dx, dy));
+        // Few blocks at the coarsest level: spread the candidates over the invocations instead
+        // of the pixels, so the GPU has enough work in flight.
+        const vec2 origin = vec2(block * BLOCK) + 0.5;
+        for (int k = 0; k < CANDIDATES_PER_INVOCATION; ++k) {
+            const int index = int(invocation) + k * PIXELS;
+            float cost = 3.4e38;
+            if (index < EXHAUSTIVE_CANDIDATES &&
+                (index < EXHAUSTIVE_CANDIDATES - 1 || use_temporal != 0)) {
+                const vec2 v = ExhaustiveCandidate(index);
+                float sad = 0.0;
+                for (int y = 0; y < BLOCK; ++y) {
+                    for (int x = 0; x < BLOCK; ++x) {
+                        sad += PixelDiff(origin + vec2(x, y), v);
+                    }
                 }
+                cost = sad * 255.0 + Penalty(v, false);
+            }
+            exhaustive_costs[index] = cost;
+        }
+        barrier();
+        if (invocation == 0) {
+            int winner = 0;
+            for (int i = 1; i < EXHAUSTIVE_CANDIDATES; ++i) {
+                if (exhaustive_costs[i] < exhaustive_costs[winner]) {
+                    winner = i;
+                }
+            }
+            imageStore(field_out, block, vec4(ExhaustiveCandidate(winner), 0.0, 0.0));
+        }
+        return;
+    }
+
+    const vec2 own = InField(block);
+    median = Median9(InField(block + ivec2(-1, -1)), InField(block + ivec2(0, -1)),
+                     InField(block + ivec2(1, -1)), InField(block + ivec2(-1, 0)), own,
+                     InField(block + ivec2(1, 0)), InField(block + ivec2(-1, 1)),
+                     InField(block + ivec2(0, 1)), InField(block + ivec2(1, 1)));
+    best = own;
+    best_cost = BlockSad(own) + Penalty(own, true);
+    Try(median);
+    for (int s = 1; s <= 3; s += 2) {
+        Try(InField(block + ivec2(s, 0)));
+        Try(InField(block + ivec2(-s, 0)));
+        Try(InField(block + ivec2(0, s)));
+        Try(InField(block + ivec2(0, -s)));
+    }
+    if (use_temporal != 0) {
+        Try(TemporalField());
+    }
+
+    const vec2 centre = best;
+    for (int dy = -1; dy <= 1; ++dy) {
+        for (int dx = -1; dx <= 1; ++dx) {
+            if (dx != 0 || dy != 0) {
+                Try(centre + vec2(dx, dy));
             }
         }
     }
-    if (gl_LocalInvocationIndex == 0) {
+    if (invocation == 0) {
         imageStore(field_out, block, vec4(best, 0.0, 0.0));
     }
 }

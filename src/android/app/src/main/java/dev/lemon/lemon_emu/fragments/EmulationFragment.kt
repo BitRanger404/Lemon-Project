@@ -2129,6 +2129,13 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
 
                     if (BooleanSetting.SHOW_FPS.getBoolean(needsGlobal)) {
                         var fpsText = String.format("FPS: %.1f", actualFps)
+                        // With frame generation, also what reaches the screen
+                        val presentedFps = NativeLibrary.getPresentedFps()
+                        if (BooleanSetting.RENDERER_FRAME_GEN.getBoolean(needsGlobal) &&
+                            presentedFps > actualFps + 1.0
+                        ) {
+                            fpsText += String.format(" (FG: %.1f)", presentedFps)
+                        }
                         sb.append(fpsText)
                     }
 
