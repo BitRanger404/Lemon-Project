@@ -6,11 +6,11 @@
 // so the generated frame keeps it where it is and doesn't drag it along the motion.
 //
 // mode 0: raw mask, 1 where the 2x2 pixels are the same in A and C (writes r).
-// mode 1: erosion, 3x3 minimum of r: still over a whole neighbourhood, so scene pixels that
-//         match by chance don't count. This is the "keep it" mask (writes r).
-// mode 2: dilation of r back (opening), keeping r in g (writes r = opened, g = strict).
-// mode 3: one more dilation of r, the "don't sample it for moving content" mask, which also
-//         covers the soft edges of HUD elements (writes r = source mask, g = strict).
+// mode 1: majority: still where the texel is and at least 4 of its 3x3 neighbourhood are, so
+//         scene pixels that match by chance don't count but thin HUD shapes do. This is the
+//         "keep it" mask (writes r).
+// mode 2: dilation of r, the "don't sample it for moving content" mask, which also covers the
+//         soft edges of HUD elements (writes r = source mask, g = keep mask).
 
 #version 460 core
 
@@ -53,21 +53,20 @@ void main() {
         imageStore(mask_out, texel, vec4(difference <= STILL_MAX ? 1.0 : 0.0, 0.0, 0.0, 0.0));
         return;
     }
-    float low = 1.0;
+    float count = 0.0;
     float high = 0.0;
     for (int y = -1; y <= 1; ++y) {
         for (int x = -1; x <= 1; ++x) {
             const float value = Mask(texel + ivec2(x, y)).r;
-            low = min(low, value);
+            count += value;
             high = max(high, value);
         }
     }
-    const vec4 centre = Mask(texel);
+    const float centre = Mask(texel).r;
     if (mode == 1) {
-        imageStore(mask_out, texel, vec4(low, 0.0, 0.0, 0.0));
-    } else if (mode == 2) {
-        imageStore(mask_out, texel, vec4(high, centre.r, 0.0, 0.0));
+        const float keep = centre > 0.5 && count >= 4.0 ? 1.0 : 0.0;
+        imageStore(mask_out, texel, vec4(keep, 0.0, 0.0, 0.0));
     } else {
-        imageStore(mask_out, texel, vec4(high, centre.g, 0.0, 0.0));
+        imageStore(mask_out, texel, vec4(high, centre, 0.0, 0.0));
     }
 }

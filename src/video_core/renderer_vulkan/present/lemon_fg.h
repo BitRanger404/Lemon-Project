@@ -66,7 +66,9 @@ private:
 
     /// Coarsest level: exhaustive + 2 passes; middle levels: 2 passes; finest: 1 pass.
     static constexpr size_t SEARCH_STEPS = 3 + 2 * (LEVELS - 2) + 1;
-    static constexpr size_t STILL_PASSES = 4;
+    static constexpr size_t STILL_PASSES = 3;
+    /// still_masks entry the last still pass writes.
+    static constexpr size_t STILL_FINAL = (STILL_PASSES - 1) % 2;
 
     Pass CreatePass(const Device& device, std::span<const u32> code,
                     std::initializer_list<VkDescriptorType> bindings, u32 push_size);
@@ -101,7 +103,7 @@ private:
     std::array<LsfgImage, 2> flows;
     LsfgImage offsets;
     LsfgImage offsets_filtered;
-    /// Ping-pong still masks; the last pass leaves the final one in still_masks[1].
+    /// Ping-pong still masks; the last pass leaves the final one in still_masks[STILL_FINAL].
     std::array<LsfgImage, 2> still_masks;
 
     std::array<VkDescriptorSet, 2> luma_sets{};

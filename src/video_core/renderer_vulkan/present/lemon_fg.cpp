@@ -182,8 +182,8 @@ LemonFgChain::LemonFgChain(const Device& device_, MemoryAllocator& memory_alloca
             .AddStorageImage(flows[slot])
             .Build(*device);
 
-        // Still mask: raw from the frames, then erode, open and grow, ping-ponging so the final
-        // one lands in still_masks[1].
+        // Still mask: raw from the frames, then majority and grow, ping-ponging between the
+        // two images.
         for (size_t pass = 0; pass < STILL_PASSES; ++pass) {
             VkDescriptorSet& set = still_sets[slot][pass];
             set = AllocateSet(still_pass);
@@ -349,7 +349,7 @@ void LemonFgChain::SetTarget(const Device& device_, size_t, size_t, u32 target,
             .AddSampledImage(frames[1 - slot])
             .AddSampledImage(frames[slot])
             .AddSampledImage(offsets_filtered)
-            .AddSampledImage(still_masks[1])
+            .AddSampledImage(still_masks[STILL_FINAL])
             .AddStorageView(view)
             .Build(device_);
     }
