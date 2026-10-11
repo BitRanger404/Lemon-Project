@@ -30,6 +30,7 @@
 #include "video_core/renderer_vulkan/fixed_pipeline_state.h"
 #include "video_core/renderer_vulkan/vk_buffer_cache.h"
 #include "video_core/renderer_vulkan/vk_compute_pipeline.h"
+#include "video_core/renderer_vulkan/vk_fragment_translation_cache.h"
 #include "video_core/renderer_vulkan/vk_graphics_pipeline.h"
 #include "video_core/renderer_vulkan/vk_texture_cache.h"
 #include "video_core/shader_cache.h"
@@ -187,6 +188,8 @@ private:
     std::chrono::steady_clock::time_point last_flush{};
     std::atomic<size_t> last_cache_size{};
     std::atomic_bool flush_in_flight{};
+
+    FragmentTranslationCache fragment_translations;
 
     Common::ThreadWorker workers;
     Common::ThreadWorker serialization_thread;

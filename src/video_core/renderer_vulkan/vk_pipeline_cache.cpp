@@ -6,6 +6,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <fstream>
 #include <iostream>
@@ -807,6 +808,11 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
     // Layer passthrough generation for devices without VK_EXT_shader_viewport_index_layer
     Shader::IR::Program* layer_source_program{};
 
+    // The fragment stage is translated in the second loop, once the runtime info and bindings
+    // that key its reuse are known (FragmentTranslationCache).
+    constexpr size_t fragment_index = static_cast<size_t>(Maxwell::ShaderType::Pixel);
+    Shader::Environment* fragment_env{};
+
     for (size_t index = 0; index < Maxwell::MaxShaderProgram; ++index) {
         const bool is_emulated_stage = layer_source_program != nullptr &&
                                        index == static_cast<u32>(Maxwell::ShaderType::Geometry);
@@ -821,6 +827,10 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         }
         Shader::Environment& env{*envs[env_index]};
         ++env_index;
+        if (index == fragment_index) {
+            fragment_env = &env;
+            continue;
+        }
 
         const u32 cfg_offset{static_cast<u32>(env.StartAddress() + sizeof(Shader::ProgramHeader))};
         Shader::Maxwell::Flow::CFG cfg(env, pools.flow_block, cfg_offset, index == 0);
@@ -844,6 +854,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
     }
     std::array<const Shader::Info*, Maxwell::MaxShaderStage> infos{};
     std::array<vk::ShaderModule, Maxwell::MaxShaderStage> modules;
+    Shader::Info fragment_info;
 
     const Shader::IR::Program* previous_stage{};
     Shader::Backend::Bindings binding;
@@ -860,9 +871,43 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         const size_t stage_index{index - 1};
         infos[stage_index] = &program.info;
 
-        const auto runtime_info{MakeRuntimeInfo(programs, key, program, previous_stage, device)};
-        ConvertLegacyToGeneric(program, runtime_info);
-        const std::vector<u32> code{EmitSPIRV(profile, runtime_info, program, binding)};
+        std::vector<u32> code;
+        if (index == fragment_index && fragment_env != nullptr) {
+            program.stage = Shader::Stage::Fragment;
+            const auto runtime_info{
+                MakeRuntimeInfo(programs, key, program, previous_stage, device)};
+            std::vector<u8> variant_key{
+                FragmentTranslationCache::MakeVariantKey(runtime_info, binding)};
+            auto [slot, slot_lock] = fragment_translations.Acquire(key.unique_hashes[index]);
+            if (auto cached = slot->Find(*fragment_env, variant_key)) {
+                code = std::move(cached->code);
+                fragment_info = std::move(cached->info);
+            } else {
+                const auto start{std::chrono::steady_clock::now()};
+                RecordingEnvironment recorder{*fragment_env};
+                const u32 cfg_offset{static_cast<u32>(fragment_env->StartAddress() +
+                                                      sizeof(Shader::ProgramHeader))};
+                Shader::Maxwell::Flow::CFG cfg(recorder, pools.flow_block, cfg_offset, false);
+                program = TranslateProgram(pools.inst, pools.block, recorder, cfg, host_info);
+                if (Settings::values.dump_guest_shaders) {
+                    fragment_env->Dump(hash, key.unique_hashes[index]);
+                }
+                ConvertLegacyToGeneric(program, runtime_info);
+                code = EmitSPIRV(profile, runtime_info, program, binding);
+                fragment_info = program.info;
+                // Only translations worth the memory: most shaders take a few milliseconds.
+                constexpr auto worth_keeping = std::chrono::milliseconds{30};
+                if (std::chrono::steady_clock::now() - start >= worth_keeping) {
+                    slot->Add(recorder.TakeQueries(), std::move(variant_key),
+                              {.code = code, .info = fragment_info});
+                }
+            }
+            infos[stage_index] = &fragment_info;
+        } else {
+            const auto runtime_info{MakeRuntimeInfo(programs, key, program, previous_stage, device)};
+            ConvertLegacyToGeneric(program, runtime_info);
+            code = EmitSPIRV(profile, runtime_info, program, binding);
+        }
         device.SaveShader(code);
         modules[stage_index] = BuildShader(device, code);
 
