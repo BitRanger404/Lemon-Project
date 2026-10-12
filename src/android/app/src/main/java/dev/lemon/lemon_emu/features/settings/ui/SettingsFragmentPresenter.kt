@@ -106,6 +106,7 @@ class SettingsFragmentPresenter(
             }
 
             add(BooleanSetting.RENDERER_FRAME_GEN.key)
+            add(IntSetting.RENDERER_FRAME_GEN_ENGINE.key)
             add(IntSetting.RENDERER_FRAME_GEN_TARGET_RATE.key)
             if (IntSetting.RENDERER_FRAME_GEN_TARGET_RATE.getInt(
                     getNeedsGlobalForKey(IntSetting.RENDERER_FRAME_GEN_TARGET_RATE.key)
@@ -545,7 +546,7 @@ class SettingsFragmentPresenter(
                 SubmenuSetting(
                     titleId = R.string.frame_gen,
                     descriptionId = R.string.frame_gen_description,
-                    iconId = R.drawable.ic_frames,
+                    iconId = R.drawable.ic_lemon_fg,
                     menuKey = MenuTag.SECTION_FRAME_GEN
                 )
             )

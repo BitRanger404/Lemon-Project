@@ -198,10 +198,6 @@ void FrameGen::Process(const Device& device, Frame* frame, VkFormat format,
                        VkExtent2D guest_extent) {
     generated = false;
 
-    if (!shaders) {
-        shaders.emplace(device);
-    }
-
     if (unavailable || !Settings::values.frame_gen.GetValue()) {
         if (chain || native) {
             scheduler.Finish();
@@ -212,8 +208,12 @@ void FrameGen::Process(const Device& device, Frame* frame, VkFormat format,
         return;
     }
 
-    // Lossless Scaling's shaders when it's installed, Lemon's own otherwise.
-    use_native = !shaders->IsValid();
+    // Lemon FG, unless the user picked Lossless Scaling and installed their Lossless.dll.
+    const bool wants_lossless = Settings::values.frame_gen_engine.GetValue() == 1;
+    if (wants_lossless && !shaders) {
+        shaders.emplace(device);
+    }
+    use_native = !wants_lossless || !shaders->IsValid();
     if (use_native && !LemonFgChain::IsSupported(device, format)) {
         unavailable = true;
         return;

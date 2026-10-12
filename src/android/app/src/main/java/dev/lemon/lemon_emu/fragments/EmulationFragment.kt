@@ -2134,7 +2134,16 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
                         if (BooleanSetting.RENDERER_FRAME_GEN.getBoolean(needsGlobal) &&
                             presentedFps > actualFps + 1.0
                         ) {
-                            fpsText += String.format(" (FG: %.1f)", presentedFps)
+                            // Name the engine at work: Lemon FG is not Lossless Scaling
+                            val engine = if (IntSetting.RENDERER_FRAME_GEN_ENGINE.getInt(
+                                    needsGlobal
+                                ) == 1 && LosslessScalingHelper.isInstalled()
+                            ) {
+                                "LSFG"
+                            } else {
+                                "Lemon FG"
+                            }
+                            fpsText += String.format(" (%s: %.1f)", engine, presentedFps)
                         }
                         sb.append(fpsText)
                     }

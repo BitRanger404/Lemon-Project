@@ -312,7 +312,6 @@
     <string name="post_processing_empty">找不到設定檔。請將濾鏡效果的 .fx 檔案放置於此資料夾：</string>
     <string name="frame_gen">影格生成</string>
     <string name="frame_gen_per_game_description">調整此遊戲的影格生成設定</string>
-    <string name="frame_gen_description">使用 Lossless Scaling 在已渲染的影格之間插入補間影格。啟用此功能時，會強制採用 FIFO 垂直同步</string>
     <string name="frame_gen_multiplier">影格倍率</string>
     <string name="frame_gen_multiplier_description">設定在每個已渲染的影格中要顯示的影格數。數值越高所需的 GPU 運算時間也會按比例增加。若要求的影格數超過裝置顯示器能呈現的數量將會降低模擬速度</string>
     <string name="frame_gen_multiplier_2x">2x</string>
@@ -334,14 +333,12 @@
     <string name="frame_gen_flow_scale">運動預測解析度</string>
     <string name="frame_gen_flow_scale_description">光流處理的解析度，以輸出解析度的比例表示。降低此設定值是減少效能負載最有效的方法</string>
     <string name="frame_gen_unsupported">無法使用影格生成</string>
-    <string name="lossless_scaling_setup_description">可選擇安裝自己擁有的 Lossless.dll 以在之後啟用影格生成功能</string>
     <string name="lossless_scaling_install">安裝 Lossless.dll</string>
     <string name="lossless_scaling_install_description">您需要擁有從合法管道獲得的 Lossless Scaling 並從該軟體的資料夾中取得 Lossless.dll 檔案才能使用影格生成功能</string>
     <string name="lossless_scaling_replace_description">安裝不同的 Lossless.dll 檔案</string>
     <string name="frame_generation_support">影格生成</string>
     <string name="frame_generation_supported">支援</string>
     <string name="lossless_scaling">Lossless Scaling</string>
-    <string name="lossless_scaling_description">安裝您擁有的 Lossless.dll 檔案以使用影格生成</string>
     <string name="lossless_scaling_installed">已安裝</string>
     <string name="lossless_scaling_not_installed">未安裝</string>
     <string name="lossless_scaling_replace">替換</string>

@@ -245,8 +245,21 @@ class SetupFragment : Fragment() {
                                 R.string.lossless_scaling,
                                 R.string.lossless_scaling_setup_description,
                                 {
-                                    pageButtonCallback = it
-                                    getLosslessDll.launch(arrayOf("*/*"))
+                                    // Lemon FG is built in: Lossless.dll is only for whoever
+                                    // prefers Lossless Scaling and owns a copy.
+                                    val callback = it
+                                    MessageDialogFragment.newInstance(
+                                        activity = requireActivity(),
+                                        titleId = R.string.lemon_fg_included,
+                                        descriptionId = R.string.lemon_fg_included_description,
+                                        positiveButtonTitleId = R.string.lemon_fg_use,
+                                        showNegativeButton = true,
+                                        negativeButtonTitleId = R.string.lossless_scaling_load_anyway,
+                                        negativeAction = {
+                                            pageButtonCallback = callback
+                                            getLosslessDll.launch(arrayOf("*/*"))
+                                        }
+                                    ).show(childFragmentManager, MessageDialogFragment.TAG)
                                 },
                                 {
                                     if (LosslessScalingHelper.isInstalled()) {

@@ -292,7 +292,6 @@
     <string name="install_gpu_driver_description">安装替代的驱动程序以获得更好的性能和精度</string>
     <string name="frame_gen">帧生成</string>
     <string name="frame_gen_per_game_description">配置针对此游戏的帧生成设定</string>
-    <string name="frame_gen_description">设定要在使用无损缩放渲染的帧之间应用的插帧。启用后强制采用FIFO呈现模式 。</string>
     <string name="frame_gen_multiplier">多帧生成</string>
     <string name="frame_gen_multiplier_description">对于每个渲染帧，设定应显示的帧。数值越高，所消耗的 GPU 时间就越会成倍增多。如果设定超过显示器能力的帧数，将会降低模拟速度。</string>
     <string name="frame_gen_multiplier_2x">2x</string>
@@ -314,14 +313,12 @@
     <string name="frame_gen_flow_scale">运动预估分辨率</string>
     <string name="frame_gen_flow_scale_description">光流通道的分辨率,以输出的比例表示。降低它是提升性能最经济的做法。</string>
     <string name="frame_gen_unsupported">帧生成不可用</string>
-    <string name="lossless_scaling_setup_description">作为可选项。请提供您自己的 Lossless.dll 以便在之后可以启用帧生成。</string>
     <string name="lossless_scaling_install">安装 Lossless.dll</string>
     <string name="lossless_scaling_install_description">帧生成需要您自己从 Lossless Scaling 获得合法的 Lossless.dll 副本</string>
     <string name="lossless_scaling_replace_description">选择其它 Lossless.dll 副本</string>
     <string name="frame_generation_support">帧生成</string>
     <string name="frame_generation_supported">支持</string>
     <string name="lossless_scaling">无损缩放</string>
-    <string name="lossless_scaling_description">提供您自己的 Lossless.dll 文件以启用帧生成</string>
     <string name="lossless_scaling_installed">已安装</string>
     <string name="lossless_scaling_not_installed">未安装</string>
     <string name="lossless_scaling_replace">替换</string>
