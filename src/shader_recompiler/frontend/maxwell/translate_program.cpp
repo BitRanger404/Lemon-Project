@@ -9,6 +9,7 @@
 #include <vector>
 #include <queue>
 
+#include "common/logging.h"
 #include "common/settings.h"
 #include "shader_recompiler/exception.h"
 #include "shader_recompiler/frontend/ir/basic_block.h"
@@ -85,6 +86,43 @@ void CollectInterpolationInfo(Environment& env, IR::Program& program) {
             throw NotImplementedException("Unknown interpolation {}", *imap);
         }();
     }
+}
+
+// Adreno runs a geometry shader once per output vertex, so its memory writes and atomics
+// happen once per vertex instead of once per primitive. Shaders that have any get a scratch
+// buffer where the copies of each primitive claim it; only the winner does them.
+void AddGeometryScratchBuffer(IR::Program& program, const HostTranslateInfo& host_info) {
+    if (program.stage != Stage::Geometry || !host_info.gs_replicates_side_effects) {
+        return;
+    }
+    size_t side_effects{};
+    for (IR::Block* const block : program.blocks) {
+        for (const IR::Inst& inst : block->Instructions()) {
+            side_effects += IR::IsGeometrySideEffect(inst.GetOpcode()) ? 1 : 0;
+        }
+    }
+    if (side_effects == 0) {
+        return;
+    }
+    auto& descs{program.info.storage_buffers_descriptors};
+    if (descs.size() >= descs.capacity()) {
+        LOG_WARNING(Shader, "Geometry shader with {} memory side effects has no room for its "
+                            "scratch buffer",
+                    side_effects);
+        return;
+    }
+    LOG_INFO(Shader, "Geometry shader with {} memory side effects claims its primitives",
+             side_effects);
+    program.info.gs_scratch_ssbo = static_cast<u32>(descs.size());
+    descs.push_back({
+        .cbuf_index = GS_SCRATCH_CBUF_INDEX,
+        .cbuf_offset = 0,
+        .count = 1,
+        .is_written = true,
+    });
+    program.info.uses_gs_scratch = true;
+    program.info.used_storage_buffer_types |= IR::Type::U32;
+    program.info.loads.Set(IR::Attribute::PrimitiveId);
 }
 
 void AddNVNStorageBuffers(IR::Program& program) {
@@ -314,6 +352,7 @@ IR::Program TranslateProgram(ObjectPool<IR::Inst>& inst_pool, ObjectPool<IR::Blo
 
     CollectInterpolationInfo(env, program);
     AddNVNStorageBuffers(program);
+    AddGeometryScratchBuffer(program, normalized_host_info);
     return program;
 }
 
