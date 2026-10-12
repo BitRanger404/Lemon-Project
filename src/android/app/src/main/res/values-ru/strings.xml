@@ -312,7 +312,6 @@
     <string name="post_processing_empty">Эффекты не найдены. Поместите файлы .fx в эту папку:</string>
     <string name="frame_gen">Генерация кадров</string>
     <string name="frame_gen_per_game_description">Настройка генерации кадров для данной игры</string>
-    <string name="frame_gen_description">Вставляет промежуточные кадры между отрендеренными с помощью Lossless Scaling. При включении принудительно устанавливает режим вывода FIFO.</string>
     <string name="frame_gen_multiplier">Множитель кадров</string>
     <string name="frame_gen_multiplier_description">Количество кадров, отображаемых на каждый отрисованный кадр. Повышение значения пропорционально увеличивает затраты ресурсов ГПУ. Если запрашивать больше, чем может отобразить ваш экран, эмуляция будет замедляться.</string>
     <string name="frame_gen_target_rate">Целевая частота кадров</string>
@@ -328,13 +327,11 @@
     <string name="frame_gen_flow_scale">Разрешение оценки движения</string>
     <string name="frame_gen_flow_scale_description">Разрешение прохода оптического потока в долях от выходного разрешения. Его понижение — самый дешёвый способ вернуть производительность.</string>
     <string name="frame_gen_unsupported">Генерация кадров недоступна</string>
-    <string name="lossless_scaling_setup_description">Опционально. Укажите свой Lossless.dll для включения генерации кадров позже.</string>
     <string name="lossless_scaling_install">Установить Lossless.dll</string>
     <string name="lossless_scaling_install_description">Для генерации кадров требуется ваша собственная легальная копия Lossless.dll из Lossless Scaling</string>
     <string name="lossless_scaling_replace_description">Выбрать другой файл Lossless.dll</string>
     <string name="frame_generation_support">Генерация кадров</string>
     <string name="frame_generation_supported">Поддерживается</string>
-    <string name="lossless_scaling_description">Предоставьте свою копию Lossless.dll для включения генерации кадров</string>
     <string name="lossless_scaling_installed">Установлена</string>
     <string name="lossless_scaling_not_installed">Не установлена</string>
     <string name="lossless_scaling_replace">Заменить</string>

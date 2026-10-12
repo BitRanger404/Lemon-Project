@@ -189,6 +189,16 @@
         <item>100</item>
     </integer-array>
 
+    <string-array name="frameGenEngineNames">
+        <item>@string/frame_gen_engine_lemon</item>
+        <item>@string/frame_gen_engine_lossless</item>
+    </string-array>
+
+    <integer-array name="frameGenEngineValues">
+        <item>0</item>
+        <item>1</item>
+    </integer-array>
+
     <string-array name="frameGenQueueTargetNames">
         <item>@string/frame_gen_queue_target_0</item>
         <item>@string/frame_gen_queue_target_1</item>

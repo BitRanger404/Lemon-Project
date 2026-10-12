@@ -426,6 +426,18 @@ struct Values {
     SwitchableSetting<bool> frame_gen{linkage, false, "frame_gen", Category::Renderer,
                                       Specialization::Default, true, false};
 
+    // 0: Lemon FG, Lemon's own. 1: Lossless Scaling, with the user's own Lossless.dll.
+    SwitchableSetting<u32, true> frame_gen_engine{linkage,
+                                                  0,
+                                                  0,
+                                                  1,
+                                                  "frame_gen_engine",
+                                                  Category::Renderer,
+                                                  Specialization::Default,
+                                                  true,
+                                                  true,
+                                                  &frame_gen};
+
     SwitchableSetting<u32, true> frame_gen_multiplier{linkage,
                                                       2,
                                                       2,

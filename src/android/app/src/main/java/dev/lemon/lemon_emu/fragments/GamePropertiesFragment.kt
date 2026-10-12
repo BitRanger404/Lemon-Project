@@ -440,7 +440,7 @@ class GamePropertiesFragment : Fragment() {
                 SubmenuProperty(
                     R.string.frame_gen,
                     R.string.frame_gen_per_game_description,
-                    R.drawable.ic_duck,
+                    R.drawable.ic_lemon_fg,
                     action = {
                         val action = HomeNavigationDirections.actionGlobalSettingsActivity(
                             args.game,

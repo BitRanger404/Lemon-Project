@@ -312,7 +312,6 @@
     <string name="post_processing_empty">لم يتم العثور على أي ملفات. ضع ملفات .fx في هذا المجلد:</string>
     <string name="frame_gen">توليد الإطار</string>
     <string name="frame_gen_per_game_description">ضبط إعدادات إنشاء الإطارات لهذه اللعبة</string>
-    <string name="frame_gen_description">قم بإدراج الإطارات المُستكملة بين الإطارات المُعالجة باستخدام تقنية التحجيم بدون فقدان الجودة. يُفرض هذا الخيار عرض الإطارات وفقًا لترتيب FIFO عند تفعيله.</string>
     <string name="frame_gen_multiplier">مضاعف الإطارات</string>
     <string name="frame_gen_multiplier_description">عدد الإطارات المطلوب عرضها لكل إطار مُعالَج. تتطلب القيم الأعلى وقت معالجة رسوميات أكبر. طلب عدد إطارات يفوق قدرة الشاشة على عرضه سيؤدي إلى إبطاء المحاكاة.</string>
     <string name="frame_gen_multiplier_2x">2x</string>
@@ -341,8 +340,6 @@
     <string name="frame_gen_flow_scale">دقة تقدير الحركة</string>
     <string name="frame_gen_flow_scale_description">دقة مسار التدفق البصري، كجزء من الناتج. ويُعد خفض هذه القيمة أرخص طريقة لاستعادة الأداء.</string>
     <string name="frame_gen_unsupported">توليد الإطار غير متاح</string>
-    <string name="frame_gen_unsupported_description">يفتقر برنامج تشغيل وحدة معالجة الرسومات هذا إلى نموذج ذاكرة Vulkan أو دعم الدقة النصفية (float16) التي تتطلبها برامج التظليل الخاصة بـ «Lossless Scaling».</string>
-    <string name="lossless_scaling_setup_description">اختياري. قم بتوفير ملف Lossless.dll الخاص بك لتمكين إنشاء الإطارات لاحقًا</string>
     <string name="lossless_scaling_install">تثبيت ملف Lossless.dll</string>
     <string name="lossless_scaling_install_description">يتطلب إنشاء الإطارات أن تكون لديك نسخة قانونية خاصة بك من ملف Lossless.dll المأخوذ من برنامج Lossless Scaling</string>
     <string name="lossless_scaling_replace_description">اختر نسخة أخرى من ملف Lossless.dll</string>
@@ -350,7 +347,6 @@
     <string name="frame_generation_supported">مدعوم</string>
     <string name="frame_generation_unsupported">غير مدعوم (لا يتوفر نموذج ذاكرة Vulkan أو float16)</string>
     <string name="lossless_scaling">Lossless Scaling</string>
-    <string name="lossless_scaling_description">قم بتوفير نسختك الخاصة من ملف Lossless.dll لتمكين توليد الإطارات</string>
     <string name="lossless_scaling_installed">مثبت</string>
     <string name="lossless_scaling_not_installed">غير مثبت</string>
     <string name="lossless_scaling_replace">استبدل</string>

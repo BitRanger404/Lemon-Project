@@ -119,6 +119,7 @@ abstract class SettingsItem(
     companion object {
         private val frameGenKeys = setOf(
             BooleanSetting.RENDERER_FRAME_GEN.key,
+            IntSetting.RENDERER_FRAME_GEN_ENGINE.key,
             IntSetting.RENDERER_FRAME_GEN_MULTIPLIER.key,
             IntSetting.RENDERER_FRAME_GEN_TARGET_RATE.key,
             IntSetting.RENDERER_FRAME_GEN_QUEUE_TARGET.key,
@@ -679,6 +680,15 @@ abstract class SettingsItem(
                     descriptionId = R.string.frame_gen_target_rate_description,
                     choicesId = R.array.frameGenTargetRateNames,
                     valuesId = R.array.frameGenTargetRateValues
+                )
+            )
+            put(
+                SingleChoiceSetting(
+                    IntSetting.RENDERER_FRAME_GEN_ENGINE,
+                    titleId = R.string.frame_gen_engine,
+                    descriptionId = R.string.frame_gen_engine_description,
+                    choicesId = R.array.frameGenEngineNames,
+                    valuesId = R.array.frameGenEngineValues
                 )
             )
             put(

@@ -1679,8 +1679,27 @@ bool QueryFrameGenerationSupport() {
         .pNext = &memory_model,
     };
     physical_device.GetFeatures2(features);
+    // Lossless Scaling's shaders.
+    const bool lossless = memory_model.vulkanMemoryModel == VK_TRUE &&
+                          float16_int8.shaderFloat16 == VK_TRUE;
 
-    return memory_model.vulkanMemoryModel == VK_TRUE && float16_int8.shaderFloat16 == VK_TRUE;
+    // Lemon FG sums with subgroup arithmetic in compute shaders (LemonFgChain::IsSupported).
+    VkPhysicalDeviceSubgroupProperties subgroup{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES,
+        .pNext = nullptr,
+    };
+    VkPhysicalDeviceProperties2 properties{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+        .pNext = &subgroup,
+    };
+    physical_device.GetProperties2(properties);
+    constexpr VkSubgroupFeatureFlags lemon_fg_operations =
+        VK_SUBGROUP_FEATURE_BASIC_BIT | VK_SUBGROUP_FEATURE_ARITHMETIC_BIT;
+    const bool lemon_fg = (subgroup.supportedOperations & lemon_fg_operations) ==
+                              lemon_fg_operations &&
+                          (subgroup.supportedStages & VK_SHADER_STAGE_COMPUTE_BIT) != 0;
+
+    return lossless || lemon_fg;
 }
 
 // Same once-per-process reasoning as GetVulkanDeviceProperties().

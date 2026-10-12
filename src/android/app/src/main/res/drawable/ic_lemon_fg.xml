@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A lemon: Lemon FG, Lemon's own frame generation. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="?attr/colorControlNormal"
+        android:pathData="M2.4,14.2C3.2,13.6 3.6,12.4 4.6,11C6.3,8.6 9.3,7.4 12.6,7.5C15.6,7.6 18.3,8.9 19.8,11C20.4,11.8 21,12.3 21.7,12.5C21,13 20.6,13.8 20.2,14.6C19,17.1 16.2,18.8 12.8,19C9.4,19.2 6.3,18.1 4.6,16.1C3.8,15.2 3.2,14.5 2.4,14.2Z" />
+    <path
+        android:fillColor="?attr/colorControlNormal"
+        android:pathData="M12.8,7.4C13,5.1 14.8,3.4 17.4,3.2C17.2,5.6 15.3,7.3 12.8,7.4Z" />
+</vector>
