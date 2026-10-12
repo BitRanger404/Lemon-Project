@@ -487,6 +487,11 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
                                             driver_id == VK_DRIVER_ID_MESA_TURNIP;
     profile.gs_replicates_side_effects = gs_replicates_side_effects;
     host_info.gs_replicates_side_effects = gs_replicates_side_effects;
+    if (gs_replicates_side_effects) {
+        // The copies of a primitive land in the same subgroup as other primitives' copies, so
+        // votes and reductions would count them all: emulate them one lane at a time instead.
+        profile.supported_subgroup_stages &= ~(1U << static_cast<u32>(Shader::Stage::Geometry));
+    }
     LOG_INFO(Render_Vulkan, "Geometry shader side effects once per primitive: {} (driver id {})",
              gs_replicates_side_effects, static_cast<int>(driver_id));
 
