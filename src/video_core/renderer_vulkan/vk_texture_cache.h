@@ -89,6 +89,19 @@ public:
 
     void ConvertImage(Framebuffer* dst, ImageView& dst_view, ImageView& src_view);
 
+    /// True for a BCn image this device stores decoded or recompressed, whose raw blocks can be
+    /// kept beside it (Image::UploadRawBcnBlocks) and decoded on the GPU.
+    [[nodiscard]] bool IsBcnStoredConverted(const Image& image) const;
+
+    /// True when a copy between these images moves raw BCn blocks that one of them doesn't hold
+    /// as such: a game reading or writing a BCn texture through an uncompressed format of the
+    /// same block size, or copying between BCn images that carry raw blocks.
+    [[nodiscard]] bool IsRawBcnCopy(const Image& dst, const Image& src) const;
+
+    /// Copies raw blocks for IsRawBcnCopy, whole levels at a time. Converted images must hold
+    /// their raw blocks already; the destination is decoded (and recompressed) again afterwards.
+    void CopyRawBcn(Image& dst, Image& src, std::span<const VideoCommon::ImageCopy> copies);
+
     bool CanAccelerateImageUpload(Image&) const noexcept {
         return false;
     }
@@ -159,6 +172,7 @@ public:
     std::optional<ASTCDecoderPass> astc_decoder_pass;
     std::optional<BcnAstcEncodePass> bcn_astc_pass;
     std::optional<BcnEacEncodePass> bcn_eac_pass;
+    std::optional<BcnDecodePass> bcn_decode_pass;
 
     std::optional<BlockLinearUnswizzle3DPass> bl3d_unswizzle_pass;
     const Settings::ResolutionScalingInfo& resolution;
@@ -338,6 +352,30 @@ public:
 
     void AllocateComputeUnswizzleImage();
 
+    /// Raw blocks of a BCn image stored decoded or recompressed, kept once the game copies it as
+    /// raw blocks (TextureCacheRuntime::CopyRawBcn). `copies` describe them as UnswizzleImage
+    /// lays them out in `map`.
+    void UploadRawBcnBlocks(const StagingBufferRef& map,
+                            std::span<const VideoCommon::BufferImageCopy> copies);
+
+    /// The raw blocks no longer match the image (it was uploaded from guest memory again).
+    void InvalidateRawBcnBlocks() noexcept {
+        has_raw_bcn_blocks = false;
+    }
+
+    [[nodiscard]] bool HasRawBcnBlocks() const noexcept {
+        return has_raw_bcn_blocks;
+    }
+
+    [[nodiscard]] VkBuffer RawBcnBuffer() const noexcept {
+        return *raw_bcn_blocks;
+    }
+
+    /// Where a level's raw blocks are, as UnswizzleImage described it.
+    [[nodiscard]] const VideoCommon::BufferImageCopy& RawBcnLevel(s32 level) const {
+        return raw_bcn_levels[level];
+    }
+
     [[nodiscard]] VkImage Handle() const noexcept {
         return *(this->*current_image);
     }
@@ -383,6 +421,13 @@ private:
     bool has_compute_unswizzle_buffer = false;
 
     void AllocateComputeUnswizzleBuffer(u32 max_slices);
+
+    bool DownloadRawBcnBlocks(std::span<VkBuffer> buffers, std::span<size_t> offsets,
+                              std::span<const VideoCommon::BufferImageCopy> copies);
+
+    vk::Buffer raw_bcn_blocks;
+    std::vector<VideoCommon::BufferImageCopy> raw_bcn_levels;
+    bool has_raw_bcn_blocks = false;
 
     // Use a pointer to field because it is relative, so that the object can be
     // moved without breaking the reference.
@@ -587,6 +632,7 @@ struct TextureCacheParams {
     static constexpr bool HAS_DEVICE_MEMORY_INFO = true;
     static constexpr bool IMPLEMENTS_ASYNC_DOWNLOADS = true;
     static constexpr bool HAS_MSAA_DOWNLOADS = true;
+    static constexpr bool HAS_RAW_BCN_COPIES = true;
 
     using Runtime = Vulkan::TextureCacheRuntime;
     using Image = Vulkan::Image;

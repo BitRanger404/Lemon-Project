@@ -76,6 +76,7 @@ set(SHADER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/smaa_blending_weight_calculation.frag
     ${CMAKE_CURRENT_SOURCE_DIR}/smaa_neighborhood_blending.vert
     ${CMAKE_CURRENT_SOURCE_DIR}/smaa_neighborhood_blending.frag
+    ${CMAKE_CURRENT_SOURCE_DIR}/vulkan_bcn_decode.comp
     ${CMAKE_CURRENT_SOURCE_DIR}/vulkan_bcn_astc_encode.comp
     ${CMAKE_CURRENT_SOURCE_DIR}/vulkan_bcn_eac_encode.comp
     ${CMAKE_CURRENT_SOURCE_DIR}/vulkan_blit_depth_stencil.frag
