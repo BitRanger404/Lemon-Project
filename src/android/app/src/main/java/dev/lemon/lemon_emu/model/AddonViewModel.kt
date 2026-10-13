@@ -34,6 +34,9 @@ class AddonViewModel : ViewModel() {
     private var loadedGameKey: String? = null
 
     private val isRefreshing = AtomicBoolean(false)
+
+    // An update or DLC was removed while the screen was open: the game list shows stale versions.
+    private var removedContent = false
     private val pendingRefresh = AtomicBoolean(false)
 
     fun onAddonsViewCreated(game: Game) {
@@ -147,26 +150,29 @@ class AddonViewModel : ViewModel() {
             PatchType.DLC -> NativeLibrary.removeDLC(patch.programId)
             PatchType.Mod -> NativeLibrary.removeMod(patch.programId, patch.name)
         }
+        removedContent = true
         refreshAddons(force = true)
     }
 
-    fun onCloseAddons() {
+    /** Saves the enabled add-ons. True if the game list needs a reload to show the change. */
+    fun onCloseAddons(): Boolean {
+        val listChanged = removedContent
+        removedContent = false
         val currentGame = game ?: run {
             _patchList.value = emptyList()
             loadedGameKey = null
-            return
+            return listChanged
         }
         val currentList = _patchList.value
         if (currentList.isEmpty()) {
             _patchList.value = emptyList()
             loadedGameKey = null
             game = null
-            return
+            return listChanged
         }
 
-        NativeConfig.setDisabledAddons(
-            currentGame.programId,
-            currentList.mapNotNull {
+        val previouslyDisabled = NativeConfig.getDisabledAddons(currentGame.programId).toSet()
+        val disabled = currentList.mapNotNull {
                 if (it.enabled) {
                     null
                 } else {
@@ -182,12 +188,13 @@ class AddonViewModel : ViewModel() {
                         it.name
                     }
                 }
-            }.toTypedArray()
-        )
+            }
+        NativeConfig.setDisabledAddons(currentGame.programId, disabled.toTypedArray())
         NativeConfig.saveGlobalConfig()
         _patchList.value = emptyList()
         loadedGameKey = null
         game = null
+        return listChanged || disabled.toSet() != previouslyDisabled
     }
 
     fun showModInstallPicker(install: Boolean) {

@@ -165,14 +165,6 @@ class GamePropertiesFragment : Fragment() {
         setInsets()
     }
 
-    override fun onDestroy() {
-        val isChangingConfigurations = activity?.isChangingConfigurations == true
-        super.onDestroy()
-        if (!isChangingConfigurations) {
-            gamesViewModel.reloadGames(true)
-        }
-    }
-
     // The redesigned page: drawn over the classic one from the same list of properties.
     private val modernProperties = mutableStateOf<List<GameProperty>>(emptyList())
     private val modernPlaytime = mutableStateOf("")
