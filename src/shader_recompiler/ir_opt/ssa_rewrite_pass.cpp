@@ -54,8 +54,17 @@ struct IndirectBranchVariable {
 };
 
 using Variant = std::variant<IR::Reg, IR::Pred, ZeroFlagTag, SignFlagTag, CarryFlagTag, OverflowFlagTag, GotoVariable, IndirectBranchVariable>;
-// TODO: majority of these require stable iterators, test with XC beforehand
-using ValueMap = std::unordered_map<IR::Block*, IR::Value>;
+// Flat maps: shaders with deeply nested gotos (Splatoon 3) make millions of definitions, and
+// node-based maps spent gigabytes on them. References into a map are never kept across an
+// insertion into it, so the flat map's unstable references are fine.
+using ValueMap = Common::unordered_map<IR::Block*, IR::Value>;
+
+/// Looks up a definition without inserting an empty one, which only grew the maps.
+const IR::Value& Find(const ValueMap& map, IR::Block* block) {
+    static const IR::Value empty{};
+    const auto it = map.find(block);
+    return it != map.end() ? it->second : empty;
+}
 
 struct DefTable {
     const IR::Value& Def(IR::Block* block, IR::Reg variable) {
@@ -66,57 +75,63 @@ struct DefTable {
     }
 
     const IR::Value& Def(IR::Block* block, IR::Pred variable) {
-        return preds[IR::PredIndex(variable)][block];
+        return Find(preds[IR::PredIndex(variable)], block);
     }
     void SetDef(IR::Block* block, IR::Pred variable, const IR::Value& value) {
         preds[IR::PredIndex(variable)].insert_or_assign(block, value);
     }
 
     const IR::Value& Def(IR::Block* block, GotoVariable variable) {
-        return goto_vars[variable.index][block];
+        if (variable.index >= goto_vars.size()) {
+            return Find(ValueMap{}, block);
+        }
+        return Find(goto_vars[variable.index], block);
     }
     void SetDef(IR::Block* block, GotoVariable variable, const IR::Value& value) {
+        if (variable.index >= goto_vars.size()) {
+            goto_vars.resize(variable.index + 1);
+        }
         goto_vars[variable.index].insert_or_assign(block, value);
     }
 
     const IR::Value& Def(IR::Block* block, IndirectBranchVariable) {
-        return indirect_branch_var[block];
+        return Find(indirect_branch_var, block);
     }
     void SetDef(IR::Block* block, IndirectBranchVariable, const IR::Value& value) {
         indirect_branch_var.insert_or_assign(block, value);
     }
 
     const IR::Value& Def(IR::Block* block, ZeroFlagTag) {
-        return zero_flag[block];
+        return Find(zero_flag, block);
     }
     void SetDef(IR::Block* block, ZeroFlagTag, const IR::Value& value) {
         zero_flag.insert_or_assign(block, value);
     }
 
     const IR::Value& Def(IR::Block* block, SignFlagTag) {
-        return sign_flag[block];
+        return Find(sign_flag, block);
     }
     void SetDef(IR::Block* block, SignFlagTag, const IR::Value& value) {
         sign_flag.insert_or_assign(block, value);
     }
 
     const IR::Value& Def(IR::Block* block, CarryFlagTag) {
-        return carry_flag[block];
+        return Find(carry_flag, block);
     }
     void SetDef(IR::Block* block, CarryFlagTag, const IR::Value& value) {
         carry_flag.insert_or_assign(block, value);
     }
 
     const IR::Value& Def(IR::Block* block, OverflowFlagTag) {
-        return overflow_flag[block];
+        return Find(overflow_flag, block);
     }
     void SetDef(IR::Block* block, OverflowFlagTag, const IR::Value& value) {
         overflow_flag.insert_or_assign(block, value);
     }
 
     std::array<ValueMap, IR::NUM_USER_PREDS> preds;
-    // TODO: Requires stable iterators
-    std::unordered_map<u32, ValueMap> goto_vars;
+    /// Indexed by goto variable; the structured control flow pass numbers them densely.
+    std::vector<ValueMap> goto_vars;
     ValueMap indirect_branch_var;
     ValueMap zero_flag;
     ValueMap sign_flag;
