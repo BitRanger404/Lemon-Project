@@ -523,12 +523,14 @@ struct Values {
     SwitchableSetting<u8, false> bg_blue{
                                          linkage, 0, "bg_blue", Category::Renderer, Specialization::Default, true, true};
 
+    // Accurate: it costs nothing measurable now (TOTK on the Odin 48.1 -> 47.9 fps, BOTW on the
+    // S24 Ultra 16.6 -> 17.0) and renders particles and some lighting right. Lemon Lite keeps Fast.
     SwitchableSetting<GpuAccuracy, true> gpu_accuracy{linkage,
-                                                      // Fast. The flickering that once made Accurate the
-                                                      // default (Garfield, Dragon Ball) came from fences,
-                                                      // which now wait for the GPU under Fast too. Games
-                                                      // that still need Accurate set it per game.
+#ifdef LEMON_LITE
                                                       GpuAccuracy::Low,
+#else
+                                                      GpuAccuracy::High,
+#endif
                                                       "gpu_accuracy",
                                                       Category::RendererAdvanced,
                                                       Specialization::Default,
