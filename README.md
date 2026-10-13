@@ -79,9 +79,12 @@ mid-syscall is captured and restored, and undoing what the game changed outside 
 
 Everything below is specific to Lemon, on top of the Switch emulation it inherits from Eden/yuzu:
 
+- **Lemon FG** — Lemon's own frame generation, built in: a 1/4-resolution motion search and a warp in Vulkan
+  compute that insert generated frames between the real ones, with HUD and the followed character kept in place.
+  No Lossless Scaling code; an Engine option can run Lossless Scaling instead from the user's own `Lossless.dll`.
 - **Online play on Nextendo Network** — sign in from Settings → Online (in the browser, Lemon never sees the
   password) and supported games play online on Nextendo's servers; Mario Kart 8 Deluxe races work.
-- **Mali GPUs** — BCn textures, which Mali cannot sample, are recompressed to ASTC on the GPU instead of being
+- **Mali GPUs** — BCn textures, which Mali cannot sample, are recompressed to ASTC (BC4/BC5 to EAC) on the GPU instead of being
   stored uncompressed (Funko Fusion: 958 MB → 179 MB). Lemon Lite's driver downloader offers experimental PanVK
   builds for the Mali-G720 and Mali-G52, each only to its own GPU.
 - **Three builds** — Lemon, Lemon Lite (0.75x resolution and asynchronous shaders by default, no bundled driver)
@@ -135,6 +138,17 @@ Full release notes (including Nightly/Experimental prereleases) are on the
 As of v0.3, Nightly and Experimental have been merged into `main` and retired as separate channels — one
 consolidated build going forward instead of splitting fixes across three branches.
 
+- **v1.2.0** — **Lemon FG**, Lemon's own frame generation, built in, with an Engine option (Lemon FG or Lossless
+  Scaling from the user's own DLL). **Accurate GPU mode by default** in Lemon (Fast in Lite). **One GPU fence
+  behavior**: wait for the host GPU, but never drain it for a value the guest already reached; the GPU Fence
+  Behavior setting is removed. CPU reads of images the GPU drew fault first, so TOTK grass stays without Use reactive
+  flushing (removed). Mali: BC4/BC5 recompressed to EAC; raw BCn block copies through uint aliases kept as raw-block
+  shadows and decoded on the GPU (Splatoon 2/3 Inklings and button text). Adreno: geometry shader side effects run
+  once per primitive (Marvel Ultimate Alliance 3 spikes and flickering lights). Dynarmic A32 SHA-1 instructions
+  (Mario Kart 8 Deluxe on Nextendo, error 2306-0502). An expensive fragment shader is translated once per session
+  (Splatoon 3 load ~100 s → ~70 s). Lemon-Ade v0.0.7 bundled (fixes a shader miscompile). Fixes: the in-game theme
+  stays yellow, the game list no longer rescans on leaving a game's page, pausing while a game loads no longer
+  crashes, and the settings screen no longer floods the log.
 - **v1.1.0** — Three builds: **Lemon**, **Lemon Lite** and **Lemon Lite & Spoofed**. **Online play on Nextendo
   Network** (Mario Kart 8 Deluxe races). **Mali GPUs** supported: BCn textures recompressed to ASTC on the GPU, and
   experimental PanVK drivers in Lite. **Settings in ten categories, with search.** **No more flickering in Fast GPU
