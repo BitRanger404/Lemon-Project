@@ -37,7 +37,7 @@ object BundledDriver {
     private val preferences
         get() = PreferenceManager.getDefaultSharedPreferences(LemonApplication.appContext)
 
-    /** File name of the zip inside the APK, e.g. "Lemon-Ade-v0.0.6.zip", or null if none. */
+    /** File name of the zip inside the APK, e.g. "Lemon-Ade-v0.0.7.zip", or null if none. */
     private fun assetName(context: Context): String? =
         context.assets.list(ASSET_DIR)?.firstOrNull { it.endsWith(".zip", ignoreCase = true) }
 
