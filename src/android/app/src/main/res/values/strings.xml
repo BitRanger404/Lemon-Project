@@ -599,8 +599,8 @@
     <string name="update_checking">Checking for updates…</string>
     <string name="update_none">No newer version found, or the update server could not be reached.</string>
     <string name="update_open_page">Open download page</string>
-    <string name="whats_new_title">What\'s new in Lemon 1.1</string>
-    <string name="whats_new_body">• Online play on Nextendo Network (Settings → Online): Mario Kart 8 Deluxe races work.\n• Settings in ten clear categories, and a search that finds any option, however deep it is.\n• No more flickering in Fast GPU mode (Garfield, Dragon Ball and others), so Fast is the default again. If a game runs slower now and does not flicker, set GPU Fence Behavior to Immediate.\n• Mali GPUs: compressed textures they cannot read are converted on the GPU, with far less memory.\n• Crysis Remastered no longer crashes and its map looks right, TOTK grass no longer disappears and Mario &amp; Luigi: Brothership no longer runs out of memory.\n• A simpler in-game menu, and the multiplayer nickname is remembered again.</string>
+    <string name="whats_new_title">What\'s new in Lemon 1.2</string>
+    <string name="whats_new_body">• Lemon FG: Lemon\'s own frame generation, built in (Settings → Graphics → Frame generation). Nothing to install; Lossless Scaling stays an option if you have your own Lossless.dll.\n• Accurate is the default GPU mode again: the optimizations of this version pay for it (Lemon Lite keeps Fast).\n• A lighter wait for the GPU: no flickering and fewer stalls, with nothing to set.\n• Mali: Splatoon 2 and 3 Inklings and button text drawn right, and BC4/BC5 textures take half the memory.\n• Adreno: Marvel Ultimate Alliance 3 without spikes or flickering lights.\n• Mario Kart 8 Deluxe connects to Nextendo Network again.\n• TOTK grass stays without any option, Splatoon 3 loads faster, and Lemon-Ade v0.0.7 is included.</string>
     <string name="whats_new_got_it">Got it</string>
     <string name="whats_new_read_more">Read more</string>
     <string name="whats_new_link">https://lemon-emu.org/#features</string>
