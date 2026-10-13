@@ -22,6 +22,7 @@ import dev.lemon.lemon_emu.R
 import dev.lemon.lemon_emu.adapters.AddonAdapter
 import dev.lemon.lemon_emu.databinding.FragmentAddonsBinding
 import dev.lemon.lemon_emu.model.AddonViewModel
+import dev.lemon.lemon_emu.model.GamesViewModel
 import dev.lemon.lemon_emu.model.HomeViewModel
 import dev.lemon.lemon_emu.utils.AddonUtil
 import dev.lemon.lemon_emu.utils.FileUtil.copyFilesTo
@@ -36,6 +37,7 @@ class AddonsFragment : Fragment() {
 
     private val homeViewModel: HomeViewModel by activityViewModels()
     private val addonViewModel: AddonViewModel by activityViewModels()
+    private val gamesViewModel: GamesViewModel by activityViewModels()
 
     private val args by navArgs<AddonsFragmentArgs>()
 
@@ -131,8 +133,9 @@ class AddonsFragment : Fragment() {
     }
 
     override fun onDestroy() {
-        if (activity?.isChangingConfigurations != true) {
-            addonViewModel.onCloseAddons()
+        // Rescan only when an update was turned on/off or removed: the list shows its version.
+        if (activity?.isChangingConfigurations != true && addonViewModel.onCloseAddons()) {
+            gamesViewModel.reloadGames(true)
         }
         super.onDestroy()
     }
