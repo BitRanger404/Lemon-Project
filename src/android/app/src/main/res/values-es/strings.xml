@@ -1425,8 +1425,8 @@
     <string name="update_checking">Buscando actualizaciones…</string>
     <string name="update_none">No hay una versión más nueva, o no se pudo conectar con el servidor de actualizaciones.</string>
     <string name="update_open_page">Abrir la página de descarga</string>
-    <string name="whats_new_title">Novedades de Lemon 1.2</string>
-    <string name="whats_new_body">• Lemon FG: la generación de fotogramas propia de Lemon, integrada (Ajustes → Gráficos → Generación de fotograma). No hay que instalar nada; Lossless Scaling sigue como opción si tienes tu propia Lossless.dll.\n• Preciso vuelve a ser el modo de GPU por defecto: las optimizaciones de esta versión compensan su coste (Lemon Lite sigue en Rápido).\n• Una espera a la GPU más ligera: sin parpadeos y con menos parones, sin nada que ajustar.\n• Mali: los Inklings y los textos de los botones de Splatoon 2 y 3 se ven bien, y las texturas BC4/BC5 ocupan la mitad de memoria.\n• Adreno: Marvel Ultimate Alliance 3 sin pinchos ni luces que parpadean.\n• Mario Kart 8 Deluxe vuelve a conectar a Nextendo Network.\n• La hierba de TOTK se queda sin tocar ninguna opción, Splatoon 3 carga más rápido y se incluye Lemon-Ade v0.0.7.</string>
+    <string name="whats_new_title">Novedades de Lemon 1.2.1</string>
+    <string name="whats_new_body">• Los juegos ya no esperan hasta un minuto en negro cuando Nextendo Network no responde: arrancan sin online a los pocos segundos.\n• La carga rápida funciona en muchos más sitios y falla mucho menos, y las partidas ya no se corrompen después de una carga rápida. ¡Gracias, BitRanger!\n• NARUTO X BORUTO Ultimate Ninja STORM CONNECTIONS ya no se cierra al entrar en el online.\n• Arreglados varios cierres: al pasar la app a segundo plano o volver, al cerrar un juego, al importar partidas, al añadir una carpeta de juegos y al arrastrar el menú del juego.</string>
     <string name="whats_new_got_it">Entendido</string>
     <string name="whats_new_read_more">Leer más</string>
     <string name="whats_new_link">https://lemon-emu.org/es/#features</string>
