@@ -52,6 +52,11 @@ public:
     void PushHistory(u64 frame_number, s64 queue_time, s64 presentation_time, BufferState state);
     void UpdateHistory(u64 frame_number, BufferState state);
 
+    /// Quick Load: moves the fences on syncpoint `id` back by `delta`, in every buffer queue, along
+    /// with the syncpoint (see Tegra::Host1x::SyncpointManager::RewindForRestore). Returns how many
+    /// fences moved.
+    static size_t RewindFencesForRestore(u32 id, u32 delta);
+
 private:
     void SignalDequeueCondition();
     bool WaitForDequeueCondition(std::unique_lock<std::mutex>& lk);
