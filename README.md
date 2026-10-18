@@ -299,6 +299,9 @@ And everyone who continues or has contributed to any of them. <3
 
 Thanks to our patrons, Xefir and HungNguYen, for supporting Lemon. <3
 
+Thanks to BitRanger for contributing code: the Quick Save/Load reliability work and the fix that keeps
+game saves from being corrupted after a Quick Load, each carefully tested on a real device. <3
+
 A very special thank you to Madeleine, who designed Lemon's logo for free and put up with endless
 rounds of changes with a lot of patience. Thank you, Madeleine! <3
 
