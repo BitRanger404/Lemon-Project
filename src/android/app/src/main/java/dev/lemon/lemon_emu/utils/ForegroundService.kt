@@ -27,7 +27,8 @@ class ForegroundService : Service() {
         const val ACTION_STOP = "stop"
     }
 
-    private fun showRunningNotification() {
+    /** Returns false when Android does not let the service run in the foreground right now. */
+    private fun showRunningNotification(): Boolean {
         // Intent is used to resume emulation if the notification is clicked
         val contentIntent = PendingIntent.getActivity(
             this,
@@ -45,7 +46,15 @@ class ForegroundService : Service() {
                 .setVibrate(null)
                 .setSound(null)
                 .setContentIntent(contentIntent)
-        startForeground(EMULATION_RUNNING_NOTIFICATION, builder.build())
+        // Only allowed while Lemon is in the foreground (Android 12+): a restart by the system or a
+        // start racing the app going to the background throws, which used to crash the app.
+        return try {
+            startForeground(EMULATION_RUNNING_NOTIFICATION, builder.build())
+            true
+        } catch (e: Exception) {
+            Log.warning("[ForegroundService] Could not run in the foreground: ${e.message}")
+            false
+        }
     }
 
     override fun onBind(intent: Intent): IBinder? {
@@ -53,7 +62,9 @@ class ForegroundService : Service() {
     }
 
     override fun onCreate() {
-        showRunningNotification()
+        if (!showRunningNotification()) {
+            stopSelf()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -68,10 +79,12 @@ class ForegroundService : Service() {
             return START_NOT_STICKY
         }
 
-        if (intent != null) {
-            showRunningNotification()
+        if (intent != null && !showRunningNotification()) {
+            stopSelfResult(startId)
         }
-        return START_STICKY
+        // Not sticky: after the process dies there is no emulation left to keep alive, and a
+        // restart by the system happens in the background, where it is not allowed to start.
+        return START_NOT_STICKY
     }
 
     override fun onDestroy() =
