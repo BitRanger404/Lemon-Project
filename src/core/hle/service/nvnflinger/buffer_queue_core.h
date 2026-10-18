@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include <array>
 #include <condition_variable>
 #include <deque>
 #include <list>
@@ -56,6 +57,21 @@ public:
     /// with the syncpoint (see Tegra::Host1x::SyncpointManager::RewindForRestore). Returns how many
     /// fences moved.
     static size_t RewindFencesForRestore(u32 id, u32 delta);
+
+    /// Quick Save: which slots the producer (the game) holds.
+    struct ProducerSlots {
+        const BufferQueueCore* core{};
+        std::array<bool, BufferQueueDefs::NUM_BUFFER_SLOTS> dequeued{};
+        std::array<bool, BufferQueueDefs::NUM_BUFFER_SLOTS> requested{};
+    };
+
+    /// Records the slots the producer holds in every buffer queue.
+    static std::vector<ProducerSlots> SnapshotProducerSlots();
+
+    /// After a Quick Load: gives the producer back the slots it held at the save (those free now)
+    /// and frees the ones it holds now but did not then, which the restored game no longer knows
+    /// it has and would never queue or cancel. Logs each change.
+    static void RestoreProducerSlots(const std::vector<ProducerSlots>& saved);
 
 private:
     void SignalDequeueCondition();
