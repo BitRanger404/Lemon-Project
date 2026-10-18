@@ -200,7 +200,31 @@ NvResult nvhost_as_gpu::AllocateSpace(IoctlAllocSpace& params) {
         .big_pages = params.page_size != VM::YUZU_PAGESIZE,
     };
 
-    Core::SaveState::UndoJournal::Gpu().Invalidate(); // not undoable by a Quick Load
+    // A Quick Load gives the space back (see Core::SaveState::UndoJournal). A game reserved space
+    // as it played, even within one room, which made every load refuse. The save cannot refer to
+    // space reserved after it, and buffers mapped into it since are unmapped by newer steps first,
+    // so the reservation must be empty by the time this is undone. Like the undo of a buffer
+    // mapping, this frees the space in the allocator but leaves its linear allocation cursor where
+    // it is: later reservations land elsewhere, which nothing depends on.
+    Core::SaveState::UndoJournal::Gpu().Record(
+        "gpu allocate space", [this, offset = params.offset, size, page_size = params.page_size] {
+            std::scoped_lock undo_lock(mutex);
+            const auto it = allocation_map.find(offset);
+            if (it == allocation_map.end() || it->second.size != size ||
+                it->second.page_size != page_size || !it->second.mappings.empty()) {
+                return false;
+            }
+            if (it->second.sparse) {
+                gmmu->Unmap(offset, size);
+            }
+            auto& space_allocator{page_size == VM::YUZU_PAGESIZE ? *vm.small_page_allocator
+                                                                 : *vm.big_page_allocator};
+            const u32 bits{page_size == VM::YUZU_PAGESIZE ? VM::PAGE_SIZE_BITS
+                                                          : vm.big_page_size_bits};
+            space_allocator.Free(static_cast<u32>(offset >> bits), static_cast<u32>(size >> bits));
+            allocation_map.erase(it);
+            return true;
+        });
     return NvResult::Success;
 }
 
@@ -239,6 +263,10 @@ NvResult nvhost_as_gpu::FreeSpace(IoctlFreeSpace& params) {
         if (allocation.page_size != params.page_size || allocation.size != (u64(params.pages) * params.page_size))
             return NvResult::BadValue;
 
+        // A Quick Load reserves the space again (see AllocateSpace), when nothing was mapped in it:
+        // the buffers freed with it here are not recorded, so such a free stays not undoable.
+        const bool undoable = allocation.mappings.empty();
+
         for (const auto mapping_offset : allocation.mappings)
             if (!FreeMappingLocked(mapping_offset))
                 return NvResult::BadValue;
@@ -252,7 +280,41 @@ NvResult nvhost_as_gpu::FreeSpace(IoctlFreeSpace& params) {
 
         allocator.Free(u32(params.offset >> page_size_bits), u32(allocation.size >> page_size_bits));
         allocation_map.erase(params.offset);
-        Core::SaveState::UndoJournal::Gpu().Invalidate(); // not undoable by a Quick Load
+        if (!undoable) {
+            Core::SaveState::UndoJournal::Gpu().Invalidate(); // not undoable by a Quick Load
+            return NvResult::Success;
+        }
+        Core::SaveState::UndoJournal::Gpu().Record(
+            "gpu free space", [this, offset = params.offset, allocation] {
+                std::scoped_lock undo_lock(mutex);
+                const u64 end = offset + allocation.size;
+                // Whatever was placed in the range after the free has been undone already (newer
+                // steps run first); refuse if anything is still there.
+                if (const auto next = allocation_map.lower_bound(offset);
+                    (next != allocation_map.end() && next->first < end) ||
+                    (next != allocation_map.begin() &&
+                     std::prev(next)->first + std::prev(next)->second.size > offset)) {
+                    return false;
+                }
+                if (const auto next = mapping_map.lower_bound(offset);
+                    (next != mapping_map.end() && next->first < end) ||
+                    (next != mapping_map.begin() &&
+                     std::prev(next)->first + std::prev(next)->second.size > offset)) {
+                    return false;
+                }
+                auto& space_allocator{allocation.page_size == VM::YUZU_PAGESIZE
+                                          ? *vm.small_page_allocator
+                                          : *vm.big_page_allocator};
+                const u32 bits{allocation.page_size == VM::YUZU_PAGESIZE ? VM::PAGE_SIZE_BITS
+                                                                         : vm.big_page_size_bits};
+                space_allocator.AllocateFixed(static_cast<u32>(offset >> bits),
+                                              static_cast<u32>(allocation.size >> bits));
+                if (allocation.sparse) {
+                    gmmu->MapSparse(offset, allocation.size);
+                }
+                allocation_map[offset] = allocation;
+                return true;
+            });
         return NvResult::Success;
     }
     return NvResult::BadValue;
@@ -328,8 +390,40 @@ NvResult nvhost_as_gpu::MapBufferEx(IoctlMapBufferEx& params) {
             }
             u64 gpu_address = u64(params.offset + params.buffer_offset);
             VAddr device_address{mapping.ptr + params.buffer_offset};
+            // Quick Load support (see Core::SaveState::UndoJournal): a remap points part of the
+            // mapping at the same memory it already maps (mapping.ptr + buffer_offset), so all it
+            // changes is the kind of those pages. Remember the kinds it replaces, run by run, and
+            // map the range again with them on a load.
+            auto& journal = Core::SaveState::UndoJournal::Gpu();
+            std::vector<std::pair<u64, Tegra::PTEKind>> old_kinds; // start of each run, its kind
+            if (journal.CanUndo()) {
+                const u64 end = gpu_address + params.mapping_size;
+                for (u64 page = gpu_address; page < end; page += VM::YUZU_PAGESIZE) {
+                    const Tegra::PTEKind kind = gmmu->GetPageKind(page);
+                    if (old_kinds.empty() || old_kinds.back().second != kind) {
+                        old_kinds.emplace_back(page, kind);
+                    }
+                }
+            }
             gmmu->Map(gpu_address, device_address, params.mapping_size, Tegra::PTEKind(params.kind), mapping.big_page);
-            Core::SaveState::UndoJournal::Gpu().Invalidate(); // not undoable by a Quick Load
+            journal.Record("gpu remap", [this, offset = params.offset,
+                                         end = gpu_address + params.mapping_size,
+                                         old_kinds = std::move(old_kinds)] {
+                std::scoped_lock undo_lock(mutex);
+                // Later steps, undone first, may have unmapped and mapped the buffer again, at
+                // another device address: use the mapping as it is now.
+                const auto current = mapping_map.find(offset);
+                if (current == mapping_map.end() || offset + current->second.size < end) {
+                    return false;
+                }
+                for (size_t i = 0; i < old_kinds.size(); i++) {
+                    const u64 start = old_kinds[i].first;
+                    const u64 run_end = i + 1 < old_kinds.size() ? old_kinds[i + 1].first : end;
+                    gmmu->Map(start, current->second.ptr + (start - offset), run_end - start,
+                              old_kinds[i].second, current->second.big_page);
+                }
+                return true;
+            });
             return NvResult::Success;
         } else {
             LOG_WARNING(Service_NVDRV, "Cannot remap an unmapped GPU address space region: {:#x}", params.offset);

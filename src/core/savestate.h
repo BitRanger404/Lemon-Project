@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <shared_mutex>
 #include <string>
 #include <vector>
@@ -48,9 +49,29 @@ enum class RestoreFailure {
     MemoryLayoutChanged,
 };
 
-// `failure`, when given, receives why a false return happened.
+// `failure`, when given, receives why a false return happened. `held_gate`, when it holds the
+// service reply gate already (CloseServiceGate), is used instead of taking it again: the caller
+// closed it before it last looked at the threads, so none of them can have had an answer since.
 [[nodiscard]] bool Restore(Core::System& system, const std::string& path,
-                           RestoreFailure* failure = nullptr);
+                           RestoreFailure* failure = nullptr,
+                           std::unique_lock<std::shared_timed_mutex>* held_gate = nullptr);
+
+// For the log: one WaitSignature() word as text: kernel state, wait reason, whether the thread is
+// inside a kernel call, and the folded wait target.
+[[nodiscard]] std::string DescribeWaitWord(u32 word);
+
+// For the log: the threads whose wait (see WaitSignature) differs between the two signatures, as
+// "thread i: saved <state reason [svc] target>, live <...>".
+[[nodiscard]] std::string DescribeWaitDifferences(const std::vector<u32>& saved,
+                                                  const std::vector<u32>& live);
+
+// For the log: the threads that HasRiskyPendingWaits() counts.
+[[nodiscard]] std::string DescribeRiskyPendingWaits(Core::System& system);
+
+/// Copies the images the GPU drew back to guest memory, so a capture holds them. Capture does
+/// this itself; done earlier, it lets the caller see which threads the GPU work this finishes
+/// wakes. Returns how many device memory runs held such images.
+size_t CopyGpuDrawnImages(Core::System& system);
 
 // Services (HLE) take this shared while they receive a request and while they complete and answer
 // it; a save or a restore takes it exclusively. A service answers by writing into the guest's
@@ -60,6 +81,10 @@ enum class RestoreFailure {
 // overwrote it and rewound the thread, and the game aborted on an invalid reply (2010-0212) - the
 // failure seen in roughly one load out of seven, with or without dying in between.
 [[nodiscard]] std::shared_timed_mutex& ServiceReplyGate();
+
+// Closes the gate for the caller: waits up to `timeout` for the services answering a request now.
+[[nodiscard]] bool CloseServiceGate(std::unique_lock<std::shared_timed_mutex>& gate,
+                                    std::chrono::milliseconds timeout);
 
 // Held by a service thread while it receives and answers a request.
 class ServiceGateHold {
@@ -96,14 +121,20 @@ private:
 // transition, which this shows as the signature changing from one look to the next, or differing
 // from the saved one. Over 33 save/load pairs on Super Mario 3D World every pair with identical
 // signatures loaded fine and every frozen load had a difference.
-[[nodiscard]] std::vector<u32> WaitSignature(Core::System& system);
+// Given the thread-local storage addresses of a save's threads (ReadSavedSignature), leaves out
+// live threads in a slot no saved thread had: threads the game started after that save, which
+// Restore ends.
+[[nodiscard]] std::vector<u32> WaitSignature(Core::System& system,
+                                             const std::vector<u64>* saved_tls = nullptr);
 
 // Whether a live signature allows restoring a save with the given one: equal, except for threads
 // asleep on another condition variable, which Restore moves back to the saved one.
 [[nodiscard]] bool SignaturesMatch(const std::vector<u32>& saved, const std::vector<u32>& live);
 
-// Reads the signature stored in a savestate file without loading anything else.
-[[nodiscard]] bool ReadSavedSignature(const std::string& path, std::vector<u32>& out);
+// Reads the signature stored in a savestate file without loading anything else, and the
+// thread-local storage address of each saved thread if asked.
+[[nodiscard]] bool ReadSavedSignature(const std::string& path, std::vector<u32>& out,
+                                      std::vector<u64>* tls = nullptr);
 
 // Read-only: true if any live thread is currently in an address-arbiter wait,
 // which is a lock handoff in progress (SignalToAddress/WaitForAddress). A save
@@ -118,6 +149,11 @@ private:
 // here), so counting them made this check true all the time and useless.
 // Touches nothing and doesn't look at any savestate file; meant to be polled
 // while the game is paused, letting it run on in short steps until it is false.
+// Since the signature holds what each thread waits on (WaitSignature), a load
+// no longer needs this: a matching signature has every arbiter wait of the save
+// on the same address and no other, and Restore checks the full address. A save
+// allows the arbiter waits that are a thread's usual state, so this only still
+// decides a save made while the user holds the game paused.
 [[nodiscard]] bool HasRiskyPendingWaits(Core::System& system);
 
 } // namespace Core::SaveState

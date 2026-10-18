@@ -3,7 +3,10 @@
 
 #pragma once
 
+#include <algorithm>
+#include <atomic>
 #include <functional>
+#include <initializer_list>
 #include <mutex>
 #include <utility>
 #include <vector>
@@ -68,7 +71,7 @@ public:
             restored_ranges.clear();
             return;
         }
-        undo.push_back({what, std::function<bool()>(std::forward<F>(step))});
+        undo.push_back({what, std::function<bool()>(std::forward<F>(step)), NextOrder()});
     }
 
     /// Notes a guest memory range that undoing will map again, so a load does not count it as
@@ -81,14 +84,24 @@ public:
     }
 
     /// Whether undoing maps [address, address + size) again.
+    /// Covered by one noted range or by several that together leave no gap: a saved region can
+    /// span memory the game unmapped in separate calls (adjacent physical memory blocks merge
+    /// into one region at the save).
     bool WillRestore(u64 address, u64 size) {
         std::scoped_lock lock{mutex};
-        for (const auto& [start, length] : restored_ranges) {
-            if (address >= start && address + size <= start + length) {
-                return true;
+        const u64 end = address + size;
+        u64 covered = address; // everything below this is known to be restored
+        bool advanced = true;
+        while (covered < end && advanced) {
+            advanced = false;
+            for (const auto& [start, length] : restored_ranges) {
+                if (start <= covered && covered < start + length) {
+                    covered = start + length;
+                    advanced = true;
+                }
             }
         }
-        return false;
+        return covered >= end;
     }
 
     /// A change happened that cannot be undone.
@@ -114,31 +127,53 @@ public:
     /// Undoes everything recorded since the save, newest first. Afterwards the state is the one of
     /// the save again, so recording carries on from an empty journal.
     bool UndoAll() {
-        std::vector<Step> steps;
-        {
-            std::scoped_lock lock{mutex};
-            if (!recording || !usable) {
-                return false;
+        return UndoAllTogether({this}).front();
+    }
+
+    /// Undoes everything the journals recorded since the save, newest first across all of them,
+    /// and returns, per journal, whether all its steps were undone. One order across the journals
+    /// matters when their changes depend on each other: memory the game maps and then locks for
+    /// the GPU (memory journal, then GPU journal) can only be unmapped once the lock is undone,
+    /// and memory it unlocks and then unmaps has to be mapped again before it can be locked.
+    static std::vector<bool> UndoAllTogether(std::initializer_list<UndoJournal*> journals) {
+        struct Taken {
+            Step step;
+            size_t journal;
+        };
+        std::vector<Taken> steps;
+        std::vector<bool> taken(journals.size(), false);
+        std::vector<bool> ok(journals.size(), false);
+        size_t index = 0;
+        for (UndoJournal* journal : journals) {
+            std::vector<Step> own;
+            if (journal->TakeSteps(own)) {
+                taken[index] = true;
+                ok[index] = true;
+                for (auto& step : own) {
+                    steps.push_back({std::move(step), index});
+                }
             }
-            steps.swap(undo);
-            restored_ranges.clear();
-            // The steps call back into code that must not record its own undoing.
-            recording = false;
+            index++;
         }
-        bool ok = true;
+        std::sort(steps.begin(), steps.end(),
+                  [](const Taken& a, const Taken& b) { return a.step.order > b.step.order; });
         u32 logged = 0;
-        for (auto it = steps.rbegin(); it != steps.rend(); ++it) {
-            if (!it->undo()) {
-                ok = false;
+        for (size_t i = 0; i < steps.size(); i++) {
+            if (!steps[i].step.undo()) {
+                ok[steps[i].journal] = false;
                 if (logged++ < 8) {
-                    LOG_WARNING(Core, "Quick Load: could not undo '{}' (step {} of {})", it->what,
-                                static_cast<size_t>(steps.rend() - it), steps.size());
+                    LOG_WARNING(Core, "Quick Load: could not undo '{}' (step {} of {})",
+                                steps[i].step.what, steps.size() - i, steps.size());
                 }
             }
         }
-        std::scoped_lock lock{mutex};
-        recording = true;
-        usable = ok;
+        index = 0;
+        for (UndoJournal* journal : journals) {
+            if (taken[index]) {
+                journal->FinishUndo(ok[index]);
+            }
+            index++;
+        }
         return ok;
     }
 
@@ -148,7 +183,37 @@ private:
     struct Step {
         const char* what;
         std::function<bool()> undo;
+        u64 order; // when it was recorded, across all journals (see UndoAllTogether)
     };
+
+    // Recording order across all journals.
+    static u64 NextOrder() {
+        static std::atomic<u64> next{0};
+        return next.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    // Starts an undo: hands over the recorded steps and stops recording, as the steps call back
+    // into code that must not record its own undoing. False, and nothing handed over, when the
+    // journal is not usable.
+    bool TakeSteps(std::vector<Step>& out) {
+        std::scoped_lock lock{mutex};
+        if (!recording || !usable) {
+            return false;
+        }
+        out.swap(undo);
+        undo.clear();
+        restored_ranges.clear();
+        recording = false;
+        return true;
+    }
+
+    // Ends an undo started by TakeSteps(): recording carries on, usable only if every step was
+    // undone.
+    void FinishUndo(bool ok) {
+        std::scoped_lock lock{mutex};
+        recording = true;
+        usable = ok;
+    }
 
     std::mutex mutex;
     std::vector<Step> undo;

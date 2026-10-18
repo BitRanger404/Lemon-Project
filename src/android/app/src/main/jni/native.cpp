@@ -8,7 +8,10 @@
 #define VMA_IMPLEMENTATION
 #include "video_core/vulkan_common/vma.h"
 
+#include <algorithm>
+#include <random>
 #include <chrono>
+#include <unordered_map>
 #include <codecvt>
 #include <cstdio>
 #include <cstring>
@@ -81,9 +84,16 @@ extern "C" {
 #include "core/frontend/applets/web_browser.h"
 #include "common/android/applets/web_browser.h"
 #include "core/file_sys/common_funcs.h"
+#include "core/hle/kernel/k_thread.h"
 #include "core/hle/service/am/applet_manager.h"
 #include "core/hle/service/am/frontend/applets.h"
 #include "core/hle/service/filesystem/filesystem.h"
+#include "core/hle/service/nvdrv/core/container.h"
+#include "core/hle/service/nvdrv/core/syncpoint_manager.h"
+#include "core/hle/service/nvdrv/nvdrv.h"
+#include "core/hle/service/nvdrv/nvdrv_interface.h"
+#include "core/hle/service/nvnflinger/buffer_queue_core.h"
+#include "core/hle/service/sm/sm.h"
 #include "core/hle/service/set/system_settings_server.h"
 #include "core/loader/loader.h"
 #include "core/memory_search.h"
@@ -99,6 +109,8 @@ extern "C" {
 #include "input_common/drivers/virtual_amiibo.h"
 #include "jni/native.h"
 #include "video_core/frame_gen/lossless_dll.h"
+#include "video_core/gpu.h"
+#include "video_core/host1x/host1x.h"
 #include "video_core/renderer_base.h"
 #include "video_core/renderer_vulkan/renderer_vulkan.h"
 #include "video_core/capture.h"
@@ -450,36 +462,242 @@ std::string GetQuickSavePath() {
 } // namespace
 
 bool EmulationSession::WaitForSafeMoment(bool can_run, const std::vector<u32>* target,
-                                         std::chrono::steady_clock::time_point deadline) {
+                                         std::chrono::steady_clock::time_point deadline,
+                                         const std::vector<u64>* target_tls,
+                                         std::unique_lock<std::shared_timed_mutex>* gate) {
     static constexpr int MaxAttempts = 100;
     static constexpr auto Step = std::chrono::milliseconds(30);
     std::vector<u32> previous;
     int equal_in_a_row = 0;
+    // For the log: how often each thread's wait changed from one look to the next, and the last
+    // change, plus the looks that found an arbitration wait (see LogNoSafeMoment).
+    int looks = 0;
+    int arbiter_looks = 0;
+    std::vector<ThreadChurn> churn;
+    std::minstd_rand jitter{
+        static_cast<u32>(std::chrono::steady_clock::now().time_since_epoch().count())};
+    // For a save: a load has to find every thread in the state it had at the save, and
+    // a save caught a busy thread in a passing state (the main thread mid-work, another in the
+    // middle of a kernel call) could not be loaded again for a long time.
+    // So first watch the threads for a while and count each one's states; then save at a look where
+    // each thread is in the state it was seen in most, the one a load is most likely to find again.
+    static constexpr int ObserveLooks = 30;
+    static constexpr int StrictLooks = 50; // then one thread may be off its usual state
+    std::vector<std::unordered_map<u32, int>> seen;
+    std::vector<u32> usual;
+    int observed = 0;
+    int picking = 0;
     for (int attempt = 0; attempt < MaxAttempts && std::chrono::steady_clock::now() < deadline;
          attempt++) {
-        const std::vector<u32> now = Core::SaveState::WaitSignature(m_system);
+        looks++;
+        // Some threads wait on the GPU (one on a request the GPU completes, another on a GPU
+        // event). Whether they are still waiting depends on whether the GPU has caught up, and the
+        // save and the restore wait for it, which woke them after they were looked at (a load
+        // refused itself 133 times on one of them). So let the GPU catch up before every look, at a
+        // save and at a load alike, and compare the threads as they are once it has.
+        (void)m_system.GPU().SettleFor(std::chrono::milliseconds(2000));
+        // A load looks with no service able to answer (see the gate parameter): a game had a
+        // thread waiting for an answer about half the time, and after a look found it waiting as
+        // at the save, the answer came before the restore looked again, up to 13 times in a row,
+        // until the load gave up.
+        const bool gate_closed = gate != nullptr && Core::SaveState::CloseServiceGate(
+                                                        *gate, std::chrono::milliseconds(50));
+        const std::vector<u32> now = Core::SaveState::WaitSignature(m_system, target_tls);
         const bool arbiter = Core::SaveState::HasRiskyPendingWaits(m_system);
+        if (arbiter) {
+            arbiter_looks++;
+        }
+        if (churn.size() != now.size()) {
+            churn.assign(now.size(), {});
+        }
+        if (!previous.empty() && previous.size() == now.size()) {
+            for (size_t i = 0; i < now.size(); i++) {
+                if (previous[i] != now[i]) {
+                    churn[i].changes++;
+                    churn[i].from = previous[i];
+                    churn[i].to = now[i];
+                }
+            }
+        }
         equal_in_a_row = (now == previous) ? equal_in_a_row + 1 : 0;
         previous = now;
 
         bool good = false;
-        if (!arbiter) {
-            good = target != nullptr ? Core::SaveState::SignaturesMatch(*target, now)
-                                     : equal_in_a_row >= 2;
+        if (target == nullptr && can_run) {
+            if (seen.size() != now.size()) {
+                // The thread count changed: start counting again.
+                seen.assign(now.size(), {});
+                usual.clear();
+                observed = 0;
+                picking = 0;
+            }
+            if (observed < ObserveLooks) {
+                for (size_t i = 0; i < now.size(); i++) {
+                    seen[i][now[i]]++;
+                }
+                if (++observed == ObserveLooks) {
+                    usual.resize(now.size());
+                    for (size_t i = 0; i < now.size(); i++) {
+                        usual[i] = std::max_element(seen[i].begin(), seen[i].end(),
+                                                    [](const auto& a, const auto& b) {
+                                                        return a.second < b.second;
+                                                    })
+                                       ->first;
+                    }
+                }
+            } else {
+                std::vector<size_t> off;
+                for (size_t i = 0; i < now.size(); i++) {
+                    if (now[i] != usual[i]) {
+                        off.push_back(i);
+                    }
+                }
+                // An address-arbiter wait is fine where it is the thread's usual state: a load then
+                // finds it in the same wait on the same address (a game's main thread waits on one
+                // between frames in some areas and on loading screens, in 88 of 100 looks, so no
+                // save could be made there). One caught in a passing arbiter wait is an event or
+                // lock changing hands: not then.
+                const bool passing_arbiter = std::ranges::any_of(off, [&](size_t i) {
+                    return (now[i] & 0x7F) ==
+                           static_cast<u32>(Kernel::ThreadWaitReasonForDebugging::Arbitration);
+                });
+                // Nor a thread off its usual state waiting for a service's answer: the service
+                // answers within milliseconds, also while the game is paused, so a load finds it
+                // there only now and then and it has moved on by the time the restore looks again
+                // (a load refused itself 8 times on one such thread).
+                const bool passing_ipc = std::ranges::any_of(off, [&](size_t i) {
+                    return (now[i] & 0x7F) ==
+                           static_cast<u32>(Kernel::ThreadWaitReasonForDebugging::IPC);
+                });
+                const size_t allowed = ++picking <= StrictLooks ? 0 : 1;
+                if (!passing_arbiter && !passing_ipc && off.size() <= allowed) {
+                    // The save waits for the GPU and copies what it drew first; the GPU work that
+                    // finishes then can wake a thread (one waiting on an event was saved as
+                    // running), so do that now and take this look only if nothing changed.
+                    Core::SaveState::CopyGpuDrawnImages(m_system);
+                    (void)m_system.GPU().SettleFor(std::chrono::milliseconds(2000));
+                    const std::vector<u32> settled = Core::SaveState::WaitSignature(m_system);
+                    if (settled != now) {
+                        LOG_INFO(Frontend,
+                                 "Quick Save: threads changed while the GPU caught up, looking "
+                                 "again: {}",
+                                 Core::SaveState::DescribeWaitDifferences(now, settled));
+                        m_system.Run();
+                        std::this_thread::sleep_for(Step);
+                        m_system.Pause();
+                        continue;
+                    }
+                    LOG_INFO(Frontend,
+                             "Quick Save: typical moment after {} look(s), {} thread(s) off its "
+                             "usual state",
+                             looks, off.size());
+                    return true;
+                }
+            }
+        } else if (target != nullptr) {
+            // The signature match already asks for every arbiter wait of the save, on the same
+            // address, and no other (the restore checks the full address).
+            good =
+                Core::SaveState::SignaturesMatch(*target, now) && (gate == nullptr || gate_closed);
+        } else if (!arbiter) {
+            good = equal_in_a_row >= 2;
         }
         if (good) {
             return true;
         }
+        if (gate != nullptr && gate->owns_lock()) {
+            gate->unlock();
+        }
         if (!can_run) {
             // Held paused by the user: nothing will change. A save has no way to check for
             // stability, so it only needs the lock handoff to be over; a load needs the match.
-            return target == nullptr && !arbiter;
+            const bool ok = target == nullptr && !arbiter;
+            if (!ok) {
+                LogNoSafeMoment(target, now, looks, arbiter_looks, churn, "paused by the user");
+            }
+            return ok;
         }
         m_system.Run();
-        std::this_thread::sleep_for(Step);
+        // A little longer or shorter each time: with a fixed step the looks could keep falling on
+        // the same point of the game's frame and never see the states that come at another.
+        std::this_thread::sleep_for(Step / 2 + std::chrono::milliseconds(jitter() % Step.count()));
         m_system.Pause();
     }
+    LogNoSafeMoment(target, previous, looks, arbiter_looks, churn, "out of attempts or time");
     return false;
+}
+
+void EmulationSession::LogNoSafeMoment(const std::vector<u32>* target, const std::vector<u32>& last,
+                                       int looks, int arbiter_looks,
+                                       const std::vector<ThreadChurn>& churn, const char* why) {
+    // What kept WaitForSafeMoment from finding a moment: for a load, the threads not as at the
+    // save; for a save, the threads whose wait kept changing.
+    std::vector<size_t> order;
+    for (size_t i = 0; i < churn.size(); i++) {
+        if (churn[i].changes > 0) {
+            order.push_back(i);
+        }
+    }
+    std::sort(order.begin(), order.end(),
+              [&](size_t a, size_t b) { return churn[a].changes > churn[b].changes; });
+    std::string changing;
+    for (size_t n = 0; n < order.size() && n < 8; n++) {
+        const auto& c = churn[order[n]];
+        changing += fmt::format("{}thread {}: {} change(s), last {} -> {}", n > 0 ? "; " : "",
+                                order[n], c.changes, Core::SaveState::DescribeWaitWord(c.from),
+                                Core::SaveState::DescribeWaitWord(c.to));
+    }
+    LOG_WARNING(Frontend,
+                "No safe moment ({}, {} look(s)): threads not matching the save: {}; threads whose "
+                "wait kept changing: {}; looks with an arbitration wait: {} (now: {})",
+                why, looks,
+                target != nullptr ? Core::SaveState::DescribeWaitDifferences(*target, last)
+                                  : std::string{"n/a (saving)"},
+                changing.empty() ? std::string{"none"} : changing, arbiter_looks,
+                Core::SaveState::DescribeRiskyPendingWaits(m_system));
+}
+
+void EmulationSession::WaitForGpuIdle(const char* what) {
+    static constexpr auto Timeout = std::chrono::milliseconds(2000);
+    const auto start = std::chrono::steady_clock::now();
+    const bool idle = m_system.GPU().WaitForIdleFor(Timeout);
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::steady_clock::now() - start)
+                        .count();
+    if (!idle) {
+        LOG_WARNING(Frontend, "{}: GPU still busy after {} ms, going ahead anyway", what, ms);
+    }
+}
+
+void EmulationSession::RewindSyncpoints() {
+    if (!m_saved_syncpoints) {
+        LOG_WARNING(Frontend, "Quick Load: no syncpoint values from a save, left as they are");
+        return;
+    }
+    auto& host1x = m_system.GPU().Host1x().GetSyncpointManager();
+    auto nvdrv =
+        m_system.ServiceManager().GetService<Service::Nvidia::NVDRV>("nvdrv:s", true)->GetModule();
+    auto& nvdrv_syncpoints = nvdrv->GetContainer().GetSyncpointManager();
+    for (u32 id = 0; id < Tegra::Host1x::SyncpointManager::NumSyncpoints; id++) {
+        const u32 now = host1x.GetGuestSyncpointValue(id);
+        const u32 saved = (*m_saved_syncpoints)[id];
+        const u32 delta = now - saved;
+        if (delta == 0) {
+            continue;
+        }
+        if (delta > 0x7FFFFFFF) {
+            LOG_WARNING(Frontend, "Quick Load: syncpoint {} is at {}, behind the save's {}, left",
+                        id, now, saved);
+            continue;
+        }
+        const size_t waiting = host1x.RewindForRestore(id, delta);
+        nvdrv_syncpoints.RewindForRestore(id, delta);
+        const size_t fences = Service::android::BufferQueueCore::RewindFencesForRestore(id, delta);
+        LOG_INFO(Frontend,
+                 "Quick Load: syncpoint {} moved back {} to {} (host now {}), {} action(s) "
+                 "waiting on it, {} display fence(s) moved",
+                 id, delta, saved, host1x.GetHostSyncpointValue(id), waiting, fences);
+    }
 }
 
 EmulationSession::QuickSaveResult EmulationSession::QuickSaveState() {
@@ -490,11 +708,22 @@ EmulationSession::QuickSaveResult EmulationSession::QuickSaveState() {
     }
 
     // A save made while a thread is in the middle of a lock handoff can never be loaded back
-    // without freezing the game (see HasRiskyPendingWaits), so wait for a moment without one.
+    // without freezing the game, so wait for a moment a load can find again (see
+    // WaitForSafeMoment).
     QuickSaveResult result = QuickSaveResult::NoSafeMoment;
     if (WaitForSafeMoment(!was_paused, nullptr)) {
+        WaitForGpuIdle("Quick Save");
         result = Core::SaveState::Capture(m_system, GetQuickSavePath()) ? QuickSaveResult::Saved
                                                                         : QuickSaveResult::Failed;
+        if (result == QuickSaveResult::Saved) {
+            m_saved_audio = AudioCore::Renderer::System::SnapshotAll();
+            m_saved_display_slots = Service::android::BufferQueueCore::SnapshotProducerSlots();
+            auto& host1x = m_system.GPU().Host1x().GetSyncpointManager();
+            m_saved_syncpoints.emplace();
+            for (u32 id = 0; id < m_saved_syncpoints->size(); id++) {
+                (*m_saved_syncpoints)[id] = host1x.GetGuestSyncpointValue(id);
+            }
+        }
     } else {
         LOG_WARNING(Frontend, "Quick Save: no safe moment found, nothing was saved");
     }
@@ -520,24 +749,41 @@ EmulationSession::QuickLoadResult EmulationSession::QuickLoadState() {
     Core::SaveState::RestoreFailure failure = Core::SaveState::RestoreFailure::Other;
     bool restored = false;
     bool no_safe_moment = false;
+    bool threads_missing = false;
     for (int attempt = 0; attempt < MaxTries; attempt++) {
         m_system.Pause();
 
         // A restore done while threads are waking or going to sleep leaves the game frozen or
         // aborted (see WaitSignature): wait until they wait the way they did at the save.
         std::vector<u32> saved_signature;
-        if (!Core::SaveState::ReadSavedSignature(GetQuickSavePath(), saved_signature)) {
+        std::vector<u64> saved_tls;
+        if (!Core::SaveState::ReadSavedSignature(GetQuickSavePath(), saved_signature, &saved_tls)) {
             if (!was_paused) {
                 m_system.Run();
             }
             return QuickLoadResult::Failed; // no usable save
         }
-        if (!WaitForSafeMoment(!was_paused, &saved_signature, deadline)) {
+        std::unique_lock gate{Core::SaveState::ServiceReplyGate(), std::defer_lock};
+        if (!WaitForSafeMoment(!was_paused, &saved_signature, deadline, &saved_tls, &gate)) {
             no_safe_moment = true;
+            // Threads of the save have ended and not come back yet: the game is between scenes
+            // (a death screen can end a level's workers until the level loads again). The restore
+            // cannot start them again; once the game has loaded, it can load.
+            threads_missing = Core::SaveState::WaitSignature(m_system, &saved_tls).size() <
+                              saved_signature.size();
             break;
         }
 
-        restored = Core::SaveState::Restore(m_system, GetQuickSavePath(), &failure);
+        WaitForGpuIdle("Quick Load");
+        restored = Core::SaveState::Restore(m_system, GetQuickSavePath(), &failure, &gate);
+        if (gate.owns_lock()) {
+            gate.unlock();
+        }
+        if (restored) {
+            RewindSyncpoints();
+            AudioCore::Renderer::System::RestoreAll(m_saved_audio);
+            Service::android::BufferQueueCore::RestoreProducerSlots(m_saved_display_slots);
+        }
         if (restored || failure != Core::SaveState::RestoreFailure::NotSettled) {
             break;
         }
@@ -550,8 +796,9 @@ EmulationSession::QuickLoadResult EmulationSession::QuickLoadState() {
         m_system.Run();
     }
     if (no_safe_moment) {
-        LOG_WARNING(Frontend, "Quick Load: no safe moment found, nothing was changed");
-        return QuickLoadResult::NoSafeMoment;
+        LOG_WARNING(Frontend, "Quick Load: no safe moment found{}, nothing was changed",
+                    threads_missing ? " (threads of the save have ended since)" : "");
+        return threads_missing ? QuickLoadResult::GameLoading : QuickLoadResult::NoSafeMoment;
     }
     if (restored) {
         return QuickLoadResult::Loaded;

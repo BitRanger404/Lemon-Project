@@ -4,17 +4,21 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <array>
 #include <optional>
 #include <span>
 #include <vector>
 
 #include <android/native_window_jni.h>
+#include "audio_core/renderer/system.h"
 #include "common/android/applets/software_keyboard.h"
 #include "core/core.h"
 #include "core/file_sys/registered_cache.h"
 #include "core/hle/service/acc/profile_manager.h"
+#include "core/hle/service/nvnflinger/buffer_queue_core.h"
 #include "core/memory_search.h"
 #include "core/perf_stats.h"
+#include "core/savestate.h"
 #include "frontend_common/content_manager.h"
 #include "jni/emu_window/emu_window.h"
 #include "video_core/rasterizer_interface.h"
@@ -62,6 +66,7 @@ public:
         Loaded = 1,       // restored
         Incompatible = 2, // refused: a change since the save cannot be undone
         NoSafeMoment = 3, // a lock handoff was in progress for the whole wait; nothing was changed
+        GameLoading = 4,  // threads of the save ended and are not back yet; nothing was changed
     };
     QuickLoadResult QuickLoadState();
     std::vector<Core::MemorySearch::Match> CheatSearch(s32 needle_value,
@@ -119,15 +124,46 @@ private:
     std::shared_ptr<FileSys::VfsFilesystem> m_vfs;
     Core::SystemResultStatus m_load_result{Core::SystemResultStatus::ErrorNotInitialized};
     std::atomic<bool> m_is_running = false;
-    /// With the system paused: lets the game run on in 30 ms steps (when `can_run`) for up to about
-    /// three seconds, or until `deadline`, until it is at a safe moment, and returns whether it got
-    /// there. No thread may
-    /// be in an address-arbiter wait, and the threads' wait signature must either equal `target`
-    /// (a load: the one stored in the save) or, with no target (a save), have been the same for
-    /// three looks in a row. See Core::SaveState::WaitSignature.
+    /// With the system paused: lets the game run on in short steps (when `can_run`) for up to
+    /// about three seconds, or until `deadline`, until it is at a safe moment, and returns whether
+    /// it got there. The threads' wait signature must either match `target` (a load: the one
+    /// stored in the save) or, with no target (a save), be each thread's usual state, an
+    /// address-arbiter wait only where that is the usual state. See
+    /// Core::SaveState::WaitSignature. For a load, `target_tls` leaves out the threads the game
+    /// started after the save, which the restore ends. With `gate`, each look is made with the
+    /// service reply gate closed, and it stays closed when this returns true, for
+    /// Core::SaveState::Restore: a thread waiting for a service's answer cannot get it between the
+    /// look that matched and the restore.
     bool WaitForSafeMoment(bool can_run, const std::vector<u32>* target = nullptr,
                            std::chrono::steady_clock::time_point deadline =
-                               std::chrono::steady_clock::time_point::max());
+                               std::chrono::steady_clock::time_point::max(),
+                           const std::vector<u64>* target_tls = nullptr,
+                           std::unique_lock<std::shared_timed_mutex>* gate = nullptr);
+    /// For the log: how often one thread's wait changed between WaitForSafeMoment's looks, and
+    /// its last change.
+    struct ThreadChurn {
+        int changes{};
+        u32 from{};
+        u32 to{};
+    };
+    /// Logs what kept WaitForSafeMoment from finding a moment.
+    void LogNoSafeMoment(const std::vector<u32>* target, const std::vector<u32>& last, int looks,
+                         int arbiter_looks, const std::vector<ThreadChurn>& churn, const char* why);
+    /// With the system paused: waits (up to two seconds) for the GPU to finish the commands the
+    /// game gave it, so a save does not read memory the GPU is still writing and a load is not
+    /// followed by GPU work from after the save. `what` names the caller in the log.
+    void WaitForGpuIdle(const char* what);
+    /// After a Quick Load, moves each GPU syncpoint back to its value at the Quick Save.
+    /// The game counts its own fences, in the memory a load rewinds, so without this they stay
+    /// behind the syncpoints by however far the GPU got between the save and the load, and every
+    /// wait for the GPU passes at once from then on.
+    void RewindSyncpoints();
+    /// The syncpoint values at the last Quick Save of this session.
+    std::optional<std::array<u32, 192>> m_saved_syncpoints;
+    /// The audio renderers' working memory at the last Quick Save of this session.
+    std::vector<AudioCore::Renderer::System::WorkbufferSnapshot> m_saved_audio;
+    /// The display queue slots the game held at the last Quick Save of this session.
+    std::vector<Service::android::BufferQueueCore::ProducerSlots> m_saved_display_slots;
 
     std::atomic<bool> m_is_paused = false;
     Common::Android::SoftwareKeyboard::AndroidKeyboard* m_software_keyboard{};
