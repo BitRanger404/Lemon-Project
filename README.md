@@ -307,7 +307,7 @@ This project stands on the open-source work of the yuzu community and of the pro
 
 And everyone who continues or has contributed to any of them. <3
 
-Thanks to our patrons, Xefir and HungNguYen, for supporting Lemon. <3
+Thanks to our patrons, Gi4nnelli, Xaphiron, Seak, Overlord, Lucky-Kris, Xefir, Pieguy744 and Wiz, for supporting Lemon. <3
 
 Thanks to BitRanger for contributing code: the Quick Save/Load reliability work and the fix that keeps
 game saves from being corrupted after a Quick Load, each carefully tested on a real device. <3
