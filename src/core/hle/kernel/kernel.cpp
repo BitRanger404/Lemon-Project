@@ -1250,9 +1250,26 @@ void KernelCore::SuspendEmulation(bool suspended) {
         return true;
     };
 
+    // Names the guest threads still on a core, so a log of a stuck pause or stop says which one
+    // and whether it is inside a system call (a host-side wait) or running game code.
+    const auto LogRunningThreads = [&]() {
+        KScopedSchedulerLock sl{*this};
+        for (auto i = 0; i < static_cast<s32>(Core::Hardware::NUM_CPU_CORES); ++i) {
+            const KThread* const thread = Scheduler(i).GetSchedulerCurrentThread();
+            for (auto& process : processes) {
+                if (thread->GetOwnerProcess() == process.GetPointerUnsafe()) {
+                    LOG_WARNING(Kernel, "  core {}: thread {} state={} in_svc={}", i,
+                                thread->GetThreadId(), static_cast<u32>(thread->GetState()),
+                                thread->IsCallingSvc());
+                }
+            }
+        }
+    };
+
     // Warn periodically if this is taking unusually long, instead of hanging silently.
     const auto wait_start = std::chrono::steady_clock::now();
     auto next_warning = wait_start + std::chrono::milliseconds(500);
+    bool named_threads = false;
     while (!TryWait()) {
         const auto now = std::chrono::steady_clock::now();
         if (now >= next_warning) {
@@ -1260,6 +1277,10 @@ void KernelCore::SuspendEmulation(bool suspended) {
                 std::chrono::duration_cast<std::chrono::milliseconds>(now - wait_start).count();
             LOG_WARNING(Kernel, "SuspendEmulation still waiting for threads to stop after {}ms",
                         elapsed_ms);
+            if (!named_threads) {
+                LogRunningThreads();
+                named_threads = true;
+            }
             next_warning = now + std::chrono::seconds(1);
         }
     }
