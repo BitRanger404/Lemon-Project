@@ -39,9 +39,12 @@ class AddGameFolderDialogFragment : DialogFragment() {
                     "calledFromGameFragment",
                     false
                 )
+                // Taken now: the folder is added after the dialog is gone, and resolving the
+                // view model from a detached fragment threw.
+                val home = homeViewModel
                 val job = gamesViewModel.addFolder(newGameDir, calledFromGameFragment)
                 job.invokeOnCompletion {
-                    homeViewModel.setGamesDirSelected(true)
+                    home.setGamesDirSelected(true)
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
