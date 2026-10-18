@@ -84,6 +84,7 @@ extern "C" {
 #include "core/frontend/applets/web_browser.h"
 #include "common/android/applets/web_browser.h"
 #include "core/file_sys/common_funcs.h"
+#include "core/hle/kernel/k_thread.h"
 #include "core/hle/service/am/applet_manager.h"
 #include "core/hle/service/am/frontend/applets.h"
 #include "core/hle/service/filesystem/filesystem.h"
@@ -536,14 +537,23 @@ bool EmulationSession::WaitForSafeMoment(bool can_run, const std::vector<u32>* t
                                        ->first;
                     }
                 }
-            } else if (!arbiter) {
+            } else {
                 std::vector<size_t> off;
                 for (size_t i = 0; i < now.size(); i++) {
                     if (now[i] != usual[i]) {
                         off.push_back(i);
                     }
                 }
-                // No thread off its usual state waiting for a service's answer: the service
+                // An address-arbiter wait is fine where it is the thread's usual state: a load then
+                // finds it in the same wait on the same address (a game's main thread waits on one
+                // between frames in some areas and on loading screens, in 88 of 100 looks, so no
+                // save could be made there). One caught in a passing arbiter wait is an event or
+                // lock changing hands: not then.
+                const bool passing_arbiter = std::ranges::any_of(off, [&](size_t i) {
+                    return (now[i] & 0x7F) ==
+                           static_cast<u32>(Kernel::ThreadWaitReasonForDebugging::Arbitration);
+                });
+                // Nor a thread off its usual state waiting for a service's answer: the service
                 // answers within milliseconds, also while the game is paused, so a load finds it
                 // there only now and then and it has moved on by the time the restore looks again
                 // (a load refused itself 8 times on one such thread).
@@ -552,7 +562,7 @@ bool EmulationSession::WaitForSafeMoment(bool can_run, const std::vector<u32>* t
                            static_cast<u32>(Kernel::ThreadWaitReasonForDebugging::IPC);
                 });
                 const size_t allowed = ++picking <= StrictLooks ? 0 : 1;
-                if (!passing_ipc && off.size() <= allowed) {
+                if (!passing_arbiter && !passing_ipc && off.size() <= allowed) {
                     // The save waits for the GPU and copies what it drew first; the GPU work that
                     // finishes then can wake a thread (one waiting on an event was saved as
                     // running), so do that now and take this look only if nothing changed.
@@ -576,9 +586,12 @@ bool EmulationSession::WaitForSafeMoment(bool can_run, const std::vector<u32>* t
                     return true;
                 }
             }
+        } else if (target != nullptr) {
+            // The signature match already asks for every arbiter wait of the save, on the same
+            // address, and no other (the restore checks the full address).
+            good = Core::SaveState::SignaturesMatch(*target, now);
         } else if (!arbiter) {
-            good = target != nullptr ? Core::SaveState::SignaturesMatch(*target, now)
-                                     : equal_in_a_row >= 2;
+            good = equal_in_a_row >= 2;
         }
         if (good) {
             return true;
@@ -683,7 +696,8 @@ EmulationSession::QuickSaveResult EmulationSession::QuickSaveState() {
     }
 
     // A save made while a thread is in the middle of a lock handoff can never be loaded back
-    // without freezing the game (see HasRiskyPendingWaits), so wait for a moment without one.
+    // without freezing the game, so wait for a moment a load can find again (see
+    // WaitForSafeMoment).
     QuickSaveResult result = QuickSaveResult::NoSafeMoment;
     if (WaitForSafeMoment(!was_paused, nullptr)) {
         WaitForGpuIdle("Quick Save");
