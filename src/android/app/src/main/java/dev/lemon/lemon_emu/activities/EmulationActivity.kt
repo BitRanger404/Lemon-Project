@@ -196,7 +196,12 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener, InputManager
         inputManager.registerInputDeviceListener(this, null)
 
         foregroundService = Intent(this, ForegroundService::class.java)
-        startForegroundService(foregroundService)
+        try {
+            startForegroundService(foregroundService)
+        } catch (e: Exception) {
+            // Started from the background (a restored task): run without the notification.
+            Log.warning("[EmulationActivity] Foreground service not started: ${e.message}")
+        }
 
         val preferences = PreferenceManager.getDefaultSharedPreferences(LemonApplication.appContext)
         if (!preferences.getBoolean(Settings.PREF_MEMORY_WARNING_SHOWN, false)) {
@@ -942,9 +947,13 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener, InputManager
         }
 
         fun stopForegroundService(activity: Activity) {
-            val startIntent = Intent(activity, ForegroundService::class.java)
-            startIntent.action = ForegroundService.ACTION_STOP
-            activity.startForegroundService(startIntent)
+            // stopService, not a foreground start with a stop action: starting one is not allowed
+            // from the background (onDestroy, a launch from Recents) and crashed the app there.
+            try {
+                activity.stopService(Intent(activity, ForegroundService::class.java))
+            } catch (e: Exception) {
+                Log.warning("[EmulationActivity] Could not stop the foreground service: ${e.message}")
+            }
         }
 
         fun launch(activity: AppCompatActivity, game: Game) {
