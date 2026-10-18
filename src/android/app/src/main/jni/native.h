@@ -10,6 +10,7 @@
 #include <vector>
 
 #include <android/native_window_jni.h>
+#include "audio_core/renderer/system.h"
 #include "common/android/applets/software_keyboard.h"
 #include "core/core.h"
 #include "core/file_sys/registered_cache.h"
@@ -140,6 +141,8 @@ private:
     void RewindSyncpoints();
     /// The syncpoint values at the last Quick Save of this session.
     std::optional<std::array<u32, 192>> m_saved_syncpoints;
+    /// The audio renderers' working memory at the last Quick Save of this session.
+    std::vector<AudioCore::Renderer::System::WorkbufferSnapshot> m_saved_audio;
 
     std::atomic<bool> m_is_paused = false;
     Common::Android::SoftwareKeyboard::AndroidKeyboard* m_software_keyboard{};
