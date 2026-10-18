@@ -59,6 +59,7 @@ import dev.lemon.lemon_emu.utils.GameHelper
 import dev.lemon.lemon_emu.utils.GameIconUtils
 import dev.lemon.lemon_emu.utils.GameStatsUtils
 import dev.lemon.lemon_emu.utils.GpuDriverHelper
+import dev.lemon.lemon_emu.utils.Log
 import dev.lemon.lemon_emu.utils.MemoryUtil
 import dev.lemon.lemon_emu.utils.PlayTimeUtils
 import dev.lemon.lemon_emu.utils.ViewUtils.marquee
@@ -710,11 +711,16 @@ class GamePropertiesFragment : Fragment() {
 
                     cacheSaveDir.deleteRecursively()
                 } catch (e: Exception) {
-                    Toast.makeText(
-                        LemonApplication.appContext,
-                        getString(R.string.fatal_error),
-                        Toast.LENGTH_LONG
-                    ).show()
+                    Log.error("[SaveImport] Import failed: ${e.message}")
+                    cacheSaveDir.deleteRecursively()
+                    // This runs on a worker thread: a Toast from here threw and crashed the app.
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            LemonApplication.appContext,
+                            LemonApplication.appContext.getString(R.string.fatal_error),
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
             }.show(parentFragmentManager, ProgressDialogFragment.TAG)
         }
