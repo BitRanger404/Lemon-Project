@@ -138,6 +138,16 @@ Full release notes (including Nightly/Experimental prereleases) are on the
 As of v0.3, Nightly and Experimental have been merged into `main` and retired as separate channels — one
 consolidated build going forward instead of splitting fixes across three branches.
 
+- **v1.2.1** — Fix release. Games no longer wait up to a minute for Nextendo Network when it does not answer
+  (the boot-time token request now gives up after a few seconds). Saves no longer get corrupted after a Quick Load:
+  `SetSize` flushes before truncating and the game's flushes reach the host file (BitRanger). Quick Save/Load
+  reliability (BitRanger): GPU remaps, physical memory map/unmap, `SetMemoryAttribute` and GPU address space are
+  undone, newest first across all journals; GPU-drawn images are copied into the save; syncpoints, audio renderer
+  state and display buffer slots are put back; threads started after the save are ended; saves happen at a moment
+  a load can find again. The undo journals are emptied when a game ends. NARUTO X BORUTO Ultimate Ninja STORM
+  CONNECTIONS online (`GetNetworkServiceLicenseKind` is command 100; `RegisterInternalPki`). Crash fixes: the
+  foreground service started from the background, emulation callbacks after the activity was gone, a Toast from
+  the save import worker thread, the add-folder dialog after dismissal, and a lost drawer drag in game.
 - **v1.2.0** — **Lemon FG**, Lemon's own frame generation, built in, with an Engine option (Lemon FG or Lossless
   Scaling from the user's own DLL). **Accurate GPU mode by default** in Lemon (Fast in Lite). **One GPU fence
   behavior**: wait for the host GPU, but never drain it for a value the guest already reached; the GPU Fence
