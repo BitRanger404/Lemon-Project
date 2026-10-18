@@ -702,7 +702,7 @@ public:
             {1, &IAsyncNetworkServiceLicenseKindContext::Cancel, "Cancel"},
             {2, &IAsyncNetworkServiceLicenseKindContext::HasDone, "HasDone"},
             {3, &IAsyncNetworkServiceLicenseKindContext::GetResult, "GetResult"},
-            {4, &IAsyncNetworkServiceLicenseKindContext::GetNetworkServiceLicenseKind, "GetNetworkServiceLicenseKind"},
+            {100, &IAsyncNetworkServiceLicenseKindContext::GetNetworkServiceLicenseKind, "GetNetworkServiceLicenseKind"},
         };
         // clang-format on
 
