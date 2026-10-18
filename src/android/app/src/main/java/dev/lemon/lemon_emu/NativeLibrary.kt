@@ -545,19 +545,22 @@ object NativeLibrary {
     @Keep
     @JvmStatic
     fun onEmulationStarted() {
-        sEmulationActivity.get()!!.onEmulationStarted()
+        sEmulationActivity.get()?.onEmulationStarted()
     }
 
+    // The emulation thread can end after the activity is gone (closed from Recents, or destroyed
+    // by the system): there is nothing left to tell then, and throwing here killed the app.
     @Keep
     @JvmStatic
     fun onEmulationStopped(status: Int) {
-        sEmulationActivity.get()!!.onEmulationStopped(status)
+        sEmulationActivity.get()?.onEmulationStopped(status)
+            ?: EmulationActivity.onEmulationStoppedWithoutActivity()
     }
 
     @Keep
     @JvmStatic
     fun onProgramChanged(programIndex: Int) {
-        sEmulationActivity.get()!!.onProgramChanged(programIndex)
+        sEmulationActivity.get()?.onProgramChanged(programIndex)
     }
 
     /**

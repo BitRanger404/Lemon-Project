@@ -935,6 +935,12 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener, InputManager
         @Volatile
         private var processSessionGame: Game? = null
 
+        /** The emulation stopped with no activity to show it: forget the session it belonged to. */
+        fun onEmulationStoppedWithoutActivity() {
+            processHasEmulationSession = false
+            processSessionGame = null
+        }
+
         fun stopForegroundService(activity: Activity) {
             val startIntent = Intent(activity, ForegroundService::class.java)
             startIntent.action = ForegroundService.ACTION_STOP
