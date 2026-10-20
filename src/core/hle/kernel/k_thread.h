@@ -187,6 +187,10 @@ public:
         m_thread_id = thread_id;
     }
 
+    // Savestate restore only: a thread just created again by a load (not yet run) takes the
+    // thread-local storage it had at the save instead of the one it was given.
+    Result MoveThreadLocalRegionForRestore(KernelCore& kernel, KProcessAddress tls);
+
     void ContinueIfHasKernelWaiters(KernelCore& kernel) {
         if (GetNumKernelWaiters() > 0) {
             Continue(kernel);
@@ -555,6 +559,11 @@ public:
 
     u8 GetSvcId() const {
         return this->GetStackParameters().current_svc_id;
+    }
+
+    // The kernel call the thread makes now, or made last (see GetSvcId).
+    void SetSvcId(u8 svc_id) {
+        this->GetStackParameters().current_svc_id = svc_id;
     }
 
     void RegisterDpc(DpcFlag flag) {
@@ -970,6 +979,12 @@ public:
     // sleep there. False if it is not asleep on a condition variable.
     bool RetargetConditionVariableForRestore(KernelCore& kernel, KProcessAddress address,
                                              u64 cv_key, u32 value);
+
+    // Savestate restore only: gives this thread, asleep in a kernel call, the timeout its call was
+    // made with at the save (in ns from now; none if not positive) in place of the one it went to
+    // sleep with. Returns the tick its wait was to time out at (0 if never), or -1 if it is not
+    // asleep.
+    s64 SetWaitTimeoutForRestore(KernelCore& kernel, s64 timeout_ns);
 
     void SetAddressArbiter(ConditionVariableThreadTree* tree, u64 address) {
         ASSERT(m_waiting_lock_info == nullptr);

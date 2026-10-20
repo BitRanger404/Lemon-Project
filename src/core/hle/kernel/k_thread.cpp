@@ -8,6 +8,7 @@
 #include <atomic>
 #include <cinttypes>
 #include <condition_variable>
+#include <limits>
 #include <mutex>
 #include <optional>
 #include <vector>
@@ -26,6 +27,7 @@
 #include "core/hardware_properties.h"
 #include "core/hle/kernel/k_condition_variable.h"
 #include "core/hle/kernel/k_handle_table.h"
+#include "core/hle/kernel/k_hardware_timer.h"
 #include "core/hle/kernel/k_memory_layout.h"
 #include "core/hle/kernel/k_process.h"
 #include "core/hle/kernel/k_resource_limit.h"
@@ -1343,6 +1345,18 @@ namespace Kernel {
         m_dummy_thread_cv.notify_one();
     }
 
+    Result KThread::MoveThreadLocalRegionForRestore(KernelCore& kernel, KProcessAddress tls) {
+        R_UNLESS(m_parent != nullptr && m_tls_address != 0, ResultInvalidState);
+        if (tls == m_tls_address) {
+            R_SUCCEED();
+        }
+        R_TRY(m_parent->CreateThreadLocalRegionAt(kernel, tls));
+        R_ASSERT(m_parent->DeleteThreadLocalRegion(kernel, m_tls_address));
+        m_tls_address = tls;
+        m_parent->GetMemory().ZeroBlock(m_tls_address, Svc::ThreadLocalRegionSize);
+        R_SUCCEED();
+    }
+
     bool KThread::RetargetConditionVariableForRestore(KernelCore& kernel, KProcessAddress address,
                                                       u64 cv_key, u32 value) {
         KScopedSchedulerLock sl{kernel};
@@ -1356,6 +1370,27 @@ namespace Kernel {
         m_address_key_value = value;
         tree->insert(*this);
         return true;
+    }
+
+    s64 KThread::SetWaitTimeoutForRestore(KernelCore& kernel, s64 timeout_ns) {
+        KScopedSchedulerLock sl{kernel};
+        if (this->GetState() != ThreadState::Waiting || m_wait_queue == nullptr) {
+            return -1;
+        }
+        auto& timer = kernel.HardwareTimer();
+        const s64 old_time = this->GetTime();
+        timer.CancelTask(this);
+        if (timeout_ns > 0) {
+            // As the kernel calls convert it.
+            s64 timeout = timer.GetTick() + timeout_ns + 2;
+            if (timeout <= 0) {
+                timeout = (std::numeric_limits<s64>::max)();
+            }
+            // A wait begun without a timeout has no timer to cancel when it ends.
+            m_wait_queue->SetHardwareTimer(std::addressof(timer));
+            timer.RegisterAbsoluteTask(this, timeout);
+        }
+        return old_time;
     }
 
     void KThread::BeginWait(KernelCore& kernel, KThreadQueue* queue) {
