@@ -62,12 +62,14 @@ Conductor::~Conductor() {
 }
 
 void Conductor::LinkVsyncEvent(u64 display_id, Event* event) {
+    std::scoped_lock lk{m_vsync_events_lock};
     if (auto it = m_vsync_managers.find(display_id); it != m_vsync_managers.end()) {
         it->second.LinkVsyncEvent(event);
     }
 }
 
 void Conductor::UnlinkVsyncEvent(u64 display_id, Event* event) {
+    std::scoped_lock lk{m_vsync_events_lock};
     if (auto it = m_vsync_managers.find(display_id); it != m_vsync_managers.end()) {
         it->second.UnlinkVsyncEvent(event);
     }
@@ -79,6 +81,7 @@ void Conductor::ProcessVsync() {
 
     for (auto& [display_id, manager] : m_vsync_managers) {
         m_container.ComposeOnDisplay(&m_swap_interval, &m_compose_speed_scale, display_id);
+        std::scoped_lock lk{m_vsync_events_lock};
         manager.SignalVsync(m_system.Kernel());
     }
 }

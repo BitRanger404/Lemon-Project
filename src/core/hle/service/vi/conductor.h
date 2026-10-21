@@ -7,6 +7,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include "common/container/unordered_map.h"
 
 #include "common/common_types.h"
@@ -50,6 +51,9 @@ private:
     Core::System& m_system;
     Container& m_container;
     ::Common::unordered_map<u64, VsyncManager> m_vsync_managers;
+    // Guards the managers' vsync events: the vsync thread signals them while services link and
+    // unlink theirs (a display service unlinks its event when it is destroyed).
+    std::mutex m_vsync_events_lock;
     std::shared_ptr<Core::Timing::EventType> m_event;
     Common::Event m_signal;
     std::jthread m_thread;
