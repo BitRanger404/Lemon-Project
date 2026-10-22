@@ -322,6 +322,7 @@ private fun itemIcon(item: MenuItem): ImageBitmap? {
     item.icon?.let { return runCatching { it.toBitmap().asImageBitmap() }.getOrNull() }
     val res = when (item.itemId) {
         R.id.menu_lemon_cheater -> R.drawable.ic_code
+        R.id.menu_cheats -> R.drawable.ic_key
         R.id.menu_lemon_macro -> R.drawable.ic_record
         R.id.menu_overlay_controls -> R.drawable.ic_overlay
         R.id.menu_overlays -> R.drawable.ic_frames
