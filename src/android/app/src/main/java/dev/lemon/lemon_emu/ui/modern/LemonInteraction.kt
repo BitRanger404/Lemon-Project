@@ -17,14 +17,17 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -36,9 +39,13 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Lemon's interaction language, shared by every button and card:
@@ -59,6 +66,10 @@ fun Modifier.lemonInteractive(
     onClick: () -> Unit
 ): Modifier = composed {
     val interactionSource = remember { MutableInteractionSource() }
+    val scope = rememberCoroutineScope()
+    val longPressTimeout = LocalViewConfiguration.current.longPressTimeoutMillis
+    // The gamepad A button's press in progress (see onKeyEvent below).
+    val aButton = remember { AButtonPress() }
     val pressed by interactionSource.collectIsPressedAsState()
     val focused by interactionSource.collectIsFocusedAsState()
 
@@ -123,14 +134,42 @@ fun Modifier.lemonInteractive(
                 Modifier
             }
         )
-        // A gamepad's A button clicks the focused item, like Enter does.
+        // A gamepad's A button clicks the focused item, like Enter does, and long-clicks it when
+        // held. All of its events are taken here: Android turns an A press nobody handles into a
+        // D-pad center press, which the clickable below clicks on as well, so one press of A
+        // clicked twice (a game was launched twice). A held A repeats its key down, and those
+        // repeats are not new presses: once a long click opened a menu, they pressed its first
+        // item, and letting go of A clicked it.
         .onKeyEvent {
-            if (it.key == Key.ButtonA && it.type == KeyEventType.KeyUp) {
-                onClick()
-                true
-            } else {
-                false
+            if (it.key != Key.ButtonA) {
+                return@onKeyEvent false
             }
+            val repeat = it.nativeKeyEvent.repeatCount > 0
+            when (it.type) {
+                KeyEventType.KeyDown -> if (aButton.press == null && !repeat) {
+                    val press = PressInteraction.Press(Offset.Zero)
+                    aButton.press = press
+                    aButton.longClicked = false
+                    interactionSource.tryEmit(press)
+                    if (onLongClick != null) {
+                        aButton.longPress = scope.launch {
+                            delay(longPressTimeout)
+                            aButton.longClicked = true
+                            onLongClick()
+                        }
+                    }
+                }
+                KeyEventType.KeyUp -> aButton.press?.let { press ->
+                    aButton.press = null
+                    aButton.longPress?.cancel()
+                    aButton.longPress = null
+                    interactionSource.tryEmit(PressInteraction.Release(press))
+                    if (!aButton.longClicked) {
+                        onClick()
+                    }
+                }
+            }
+            true
         }
         .combinedClickable(
             interactionSource = interactionSource,
@@ -142,4 +181,10 @@ fun Modifier.lemonInteractive(
         // A plain clickable can't take focus while the window is in touch mode (say, right after
         // the in-game menu was swiped open), leaving a controller with nothing to move around.
         .focusable(interactionSource = interactionSource)
+}
+
+private class AButtonPress {
+    var press: PressInteraction.Press? = null
+    var longPress: Job? = null
+    var longClicked = false
 }
