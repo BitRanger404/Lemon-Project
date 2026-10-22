@@ -927,7 +927,7 @@
     <string name="clear_shader_cache_warning_description">Experimentará más tirones mientras se regenera la caché de los sombreadores</string>
     <string name="cleared_shaders_successfully">Sombreadores limpiados con éxito</string>
     <string name="driver_shader_wipe_dialog_title">Sombreadores limpiados</string>
-    <string name="driver_shader_wipe_dialog_message">Lemon ha limpiado automáticamente todos los sombreadores guardados para mantener la canalización de Vulkan válida. Esto es esencial al cambiar o actualizar los controladores de la GPU para prevenir errores y fallos gráficos. Es posible que experimente algunas interrupciones durante la reconstrucción de los sombreadores.</string>
+    <string name="driver_shader_wipe_dialog_message">Lemon ha borrado la caché de shaders de este juego, como hace siempre que cambia su driver gráfico: los shaders creados con otro driver pueden cerrar el juego o hacer que se vea mal. Habrá algunos tirones mientras se vuelven a crear.</string>
     <string name="addons_game">Complementos: %1$s</string>
     <string name="save_data">Datos de guardado</string>
     <string name="save_data_description">Gestiona los datos de guardado de este juego</string>

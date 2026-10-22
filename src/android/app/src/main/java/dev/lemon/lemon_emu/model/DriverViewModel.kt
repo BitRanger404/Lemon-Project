@@ -20,6 +20,7 @@ import dev.lemon.lemon_emu.features.settings.model.BooleanSetting
 import dev.lemon.lemon_emu.features.settings.model.StringSetting
 import dev.lemon.lemon_emu.features.settings.utils.SettingsFile
 import dev.lemon.lemon_emu.model.Driver.Companion.toDriver
+import dev.lemon.lemon_emu.utils.DirectoryInitialization
 import dev.lemon.lemon_emu.utils.GpuDriverHelper
 import dev.lemon.lemon_emu.NativeLibrary
 import dev.lemon.lemon_emu.utils.GpuDriverMetadata
@@ -146,11 +147,12 @@ class DriverViewModel : ViewModel() {
     private fun wipeGameShaders(game: Game) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                val externalFilesDir = LemonApplication.appContext.getExternalFilesDir(null)
-                    ?: return@withContext
+                // The same directory the game page's Clear shader cache empties: <user>/cache/shader.
+                // This looked in <user>/shader, which does not exist, so a driver change said the
+                // shaders were cleared but left them all in place.
+                val userDirectory = DirectoryInitialization.userDirectory ?: return@withContext
                 val shaderDir = File(
-                    externalFilesDir.absolutePath +
-                    "/shader/" + game.settingsName.lowercase()
+                    userDirectory + "/cache/shader/" + game.settingsName.lowercase()
                 )
                 if (shaderDir.exists()) {
                     shaderDir.deleteRecursively()
