@@ -26,6 +26,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -140,6 +141,17 @@ fun Modifier.lemonInteractive(
         // clicked twice (a game was launched twice). A held A repeats its key down, and those
         // repeats are not new presses: once a long click opened a menu, they pressed its first
         // item, and letting go of A clicked it.
+        // Focus moving away while A is held (a long click opening a menu) sends A's release to
+        // the new item, so this one would stay pressed and swallow the next A press: end the press
+        // here instead.
+        .onFocusChanged { state ->
+            if (!state.isFocused) {
+                aButton.longPress?.cancel()
+                aButton.longPress = null
+                aButton.press?.let { interactionSource.tryEmit(PressInteraction.Cancel(it)) }
+                aButton.press = null
+            }
+        }
         .onKeyEvent {
             if (it.key != Key.ButtonA) {
                 return@onKeyEvent false
