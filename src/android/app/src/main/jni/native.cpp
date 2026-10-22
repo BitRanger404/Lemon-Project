@@ -2520,7 +2520,7 @@ jint Java_dev_lemon_lemon_1emu_NativeLibrary_addCheats(JNIEnv* env, jobject jobj
                                                      jstring jprogramId, jstring jbuildId,
                                                      jstring jtext) {
     const u64 program_id = EmulationSession::GetProgramId(env, jprogramId);
-    const size_t count = CheatPatchManager(program_id).AddCheats(
+    const long count = CheatPatchManager(program_id).AddCheats(
         ParseBuildId(Common::Android::GetJString(env, jbuildId)),
         Common::Android::GetJString(env, jtext));
     if (count > 0 && IsRunningGame(program_id)) {
