@@ -696,6 +696,41 @@ object NativeLibrary {
     external fun getPatchesForFile(path: String, programId: String): Array<Patch>?
 
     /**
+     * The build ID a game's cheats are keyed by (its main executable's, with the installed update),
+     * as the 16 hex digits cheat files are named after; empty if it can't be read. The running
+     * game's when [programId] is running.
+     */
+    external fun getCheatBuildId(path: String, programId: String): String
+
+    /**
+     * The Atmosphere cheats loaded for [buildId], one string per cheat: mod folder ("" for a loose
+     * cheat_*.txt file), name, enabled (1/0) and master code (1/0), separated by \u001F.
+     */
+    external fun getCheats(programId: String, buildId: String): Array<String>
+
+    /**
+     * Switches one cheat of a mod folder on or off; applied at once when the game is running.
+     * Returns 0 when saved, 1 when it could not be saved, 2 when switching it on would overflow the
+     * cheat engine (it is left off).
+     */
+    external fun setCheatEnabled(
+        programId: String,
+        buildId: String,
+        folder: String,
+        name: String,
+        enabled: Boolean
+    ): Int
+
+    /** Reads the cheats again if [programId] is running (after a cheat folder was removed). */
+    external fun reloadCheats(programId: String)
+
+    /**
+     * Saves pasted cheat codes for [buildId] in a new "Lemon cheats" mod folder. Returns how many
+     * cheats the text holds; 0 if none and -1 if they could not be saved, and then nothing is.
+     */
+    external fun addCheats(programId: String, buildId: String, text: String): Int
+
+    /**
      * Removes an update for a given [programId]
      * @param programId String representation of a game's program ID
      */

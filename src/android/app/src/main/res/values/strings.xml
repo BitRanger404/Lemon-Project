@@ -2175,4 +2175,29 @@ along with this program. If not, see https://www.gnu.org/licenses/gpl-3.0.html
     <string name="overlay_save_all_games">All games</string>
     <string name="overlay_discard_changes">Discard changes</string>
     <string name="overlay_saved_for_game">On-screen controls saved for %1$s</string>
+    <!-- Cheat manager (Atmosphere cheats) -->
+    <string name="cheats">Cheats</string>
+    <string name="cheats_description">Atmosphère cheat codes: add them and switch each one on or off</string>
+    <string name="cheats_title">Cheats · %1$s</string>
+    <string name="cheats_reading">Reading the game…</string>
+    <string name="cheats_no_build_id">Couldn\'t read this game\'s build ID, so cheats can\'t be added for it.</string>
+    <string name="cheats_build_id">Build ID: %1$s. Cheat codes only work on the build they were made for: check that yours are for this one.</string>
+    <string name="cheats_empty">No cheats for this build yet. Use Add cheats to paste the codes made for build %1$s.</string>
+    <string name="cheats_add">Add cheats</string>
+    <string name="cheats_add_confirm">Add</string>
+    <string name="cheats_add_description">Paste the codes for build %1$s: an Atmosphère cheat file, or the cheats copied from a cheat website, with each name on its own line.</string>
+    <string name="cheats_paste_hint">Paste the cheat codes here</string>
+    <string name="cheats_import_file">Import file</string>
+    <string name="cheats_none_found">No cheat codes found in that text.</string>
+    <string name="cheats_save_failed">Couldn\'t save the cheats.</string>
+    <string name="cheats_too_many">Too many cheats on: the cheat engine runs at most 1024 instructions of them together, and none past that. Turn some off first.</string>
+    <string name="cheats_delete_folder">Delete</string>
+    <string name="cheats_delete_folder_confirm">Delete \"%1$s\" and all its cheats?</string>
+    <string name="cheats_master">%1$s (master code, always on)</string>
+    <string name="cheats_toggle_failed">Couldn\'t save that change.</string>
+    <string name="cheats_loose_files">Loose cheat files (can\'t be switched)</string>
+    <plurals name="cheats_added">
+        <item quantity="one">%d cheat added</item>
+        <item quantity="other">%d cheats added</item>
+    </plurals>
 </resources>

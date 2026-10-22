@@ -10,6 +10,8 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 #include "common/common_types.h"
 #include "core/file_sys/nca_metadata.h"
 #include "core/file_sys/vfs/vfs_types.h"
@@ -79,8 +81,44 @@ public:
     [[nodiscard]] bool HasNSOPatch(const BuildID& build_id, std::string_view name) const;
 
     // Creates a CheatList object with all
+    // With `out_folders`, also the mod folder each entry comes from ("" for a cheat_*.txt file at
+    // the root of the title's mod directory), one per entry.
     [[nodiscard]] std::vector<Core::Memory::CheatEntry> CreateCheatList(
-        const BuildID& build_id) const;
+        const BuildID& build_id, std::vector<std::string>* out_folders = nullptr) const;
+
+    // Lemon's cheat manager (Atmosphere cheat files under the title's mod directory).
+    struct CheatInfo {
+        std::string folder; // the mod folder; empty for a root cheat_*.txt, which can't be switched
+        std::string name;
+        bool enabled;
+        bool master; // the master code ({...}): always on while its file is
+    };
+
+    // The cheats CreateCheatList loads for `build_id`, in the same order, without empty entries.
+    [[nodiscard]] std::vector<CheatInfo> ListCheats(const BuildID& build_id) const;
+
+    enum class CheatToggleResult {
+        Saved,
+        Failed,  // the folder has no cheats directory, or toggles.txt can't be written
+        TooMany, // switching it on would overflow the cheat VM: left off
+    };
+
+    // Switches one cheat of a mod folder on or off, in the folder's cheats/toggles.txt (Atmosphere's
+    // format). The cheat VM runs at most DmntCheatVm::MaximumProgramOpcodeCount instructions of all
+    // the cheats that are on together, and loads none of them past that, so a cheat that would
+    // overflow it is left off. `vfs` opens the folder for writing (the mod directory itself is opened
+    // read-only).
+    CheatToggleResult SetCheatEnabled(const VirtualFilesystem& vfs, const BuildID& build_id,
+                                      std::string_view folder, std::string_view name,
+                                      bool enabled) const;
+
+    // Saves cheat codes pasted by the user for `build_id` in a new "Lemon cheats" mod folder, every
+    // cheat off (the user picks the ones to use; all of a long list together overflow the VM). The
+    // text may be an Atmosphere cheat file, or codes copied from a web page with the cheat names on
+    // their own lines and no brackets. Returns how many cheats it holds (master code included); 0
+    // when it holds none and -1 when they could not be saved, and nothing is written then.
+    [[nodiscard]] long AddCheats(const VirtualFilesystem& vfs, const BuildID& build_id,
+                                 std::string_view text) const;
 
     // Currently tracked RomFS patches:
     // - Game Updates
