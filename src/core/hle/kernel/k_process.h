@@ -352,6 +352,9 @@ public:
     void RemoveSharedMemory(KernelCore& kernel, KSharedMemory* shmem, KProcessAddress address, size_t size);
 
     Result CreateThreadLocalRegion(KernelCore& kernel, KProcessAddress* out);
+    // Savestate restore only: reserves the thread-local region at `addr`, mapping its page again if
+    // it was freed (see KThreadLocalPage::InitializeAt).
+    Result CreateThreadLocalRegionAt(KernelCore& kernel, KProcessAddress addr);
     Result DeleteThreadLocalRegion(KernelCore& kernel, KProcessAddress addr);
 
     KProcessAddress GetProcessLocalRegionAddress() const {
@@ -479,6 +482,12 @@ public:
 
     Result WaitConditionVariable(KProcessAddress address, uintptr_t cv_key, u32 tag, s64 ns) {
         R_RETURN(m_cond_var.Wait(address, cv_key, tag, ns));
+    }
+
+    // Savestate restore only: see KConditionVariable::WaitForRestore.
+    void WaitConditionVariableForRestore(KThread* thread, KProcessAddress address, uintptr_t cv_key,
+                                         u32 tag, s64 ns) {
+        m_cond_var.WaitForRestore(thread, address, cv_key, tag, ns);
     }
 
     Result SignalAddressArbiter(uintptr_t address, Svc::SignalType signal_type, s32 value, s32 count) {

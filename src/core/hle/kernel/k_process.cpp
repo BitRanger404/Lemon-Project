@@ -679,6 +679,46 @@ Result KProcess::CreateThreadLocalRegion(KernelCore& kernel, KProcessAddress* ou
     R_SUCCEED();
 }
 
+Result KProcess::CreateThreadLocalRegionAt(KernelCore& kernel, KProcessAddress addr) {
+    const KProcessAddress page_addr = Common::AlignDown(GetInteger(addr), PageSize);
+
+    // A page still in use: take the region in it.
+    {
+        KScopedSchedulerLock sl(kernel);
+        if (m_fully_used_tlp_tree.find_key(page_addr) != m_fully_used_tlp_tree.end()) {
+            R_THROW(ResultInvalidState);
+        }
+        if (auto it = m_partially_used_tlp_tree.find_key(page_addr);
+            it != m_partially_used_tlp_tree.end()) {
+            R_UNLESS(it->ReserveAt(addr), ResultInvalidState);
+            if (it->IsAllUsed()) {
+                KThreadLocalPage* tlp = std::addressof(*it);
+                m_partially_used_tlp_tree.erase(it);
+                m_fully_used_tlp_tree.insert(*tlp);
+            }
+            R_SUCCEED();
+        }
+    }
+
+    // Otherwise map the page again where it was.
+    KThreadLocalPage* tlp = KThreadLocalPage::Allocate(kernel);
+    R_UNLESS(tlp != nullptr, ResultOutOfMemory);
+    ON_RESULT_FAILURE {
+        KThreadLocalPage::Free(kernel, tlp);
+    };
+    R_TRY(tlp->InitializeAt(kernel, this, page_addr));
+    ASSERT(tlp->ReserveAt(addr));
+    {
+        KScopedSchedulerLock sl(kernel);
+        if (tlp->IsAllUsed()) {
+            m_fully_used_tlp_tree.insert(*tlp);
+        } else {
+            m_partially_used_tlp_tree.insert(*tlp);
+        }
+    }
+    R_SUCCEED();
+}
+
 Result KProcess::DeleteThreadLocalRegion(KernelCore& kernel, KProcessAddress addr) {
     KThreadLocalPage* page_to_free = nullptr;
 
