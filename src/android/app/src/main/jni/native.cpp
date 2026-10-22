@@ -2508,6 +2508,7 @@ jboolean Java_dev_lemon_lemon_1emu_NativeLibrary_setCheatEnabled(JNIEnv* env, jo
                                                                jboolean enabled) {
     const u64 program_id = EmulationSession::GetProgramId(env, jprogramId);
     const bool ok = CheatPatchManager(program_id).SetCheatEnabled(
+        EmulationSession::GetInstance().System().GetFilesystem(),
         Common::Android::GetJString(env, jfolder), Common::Android::GetJString(env, jname),
         enabled);
     if (ok && IsRunningGame(program_id)) {
@@ -2521,6 +2522,7 @@ jint Java_dev_lemon_lemon_1emu_NativeLibrary_addCheats(JNIEnv* env, jobject jobj
                                                      jstring jtext) {
     const u64 program_id = EmulationSession::GetProgramId(env, jprogramId);
     const long count = CheatPatchManager(program_id).AddCheats(
+        EmulationSession::GetInstance().System().GetFilesystem(),
         ParseBuildId(Common::Android::GetJString(env, jbuildId)),
         Common::Android::GetJString(env, jtext));
     if (count > 0 && IsRunningGame(program_id)) {
