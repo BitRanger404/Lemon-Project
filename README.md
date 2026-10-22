@@ -100,6 +100,11 @@ Everything below is specific to Lemon, on top of the Switch emulation it inherit
   typed), refine by increased/decreased/unchanged across passes, direct value editing,
   and freezing a found address so it stays fixed (infinite HP/ammo/etc.) via a background rewrite thread, without
   needing a premade cheat code.
+- **Cheat codes** — Atmosphère cheats from the game's page or the in-game menu: paste a list or import a `.txt`
+  (bare titles are read as `[name]`), see the game's build ID (read from its main NSO before it boots), and turn
+  each cheat on or off, applied live while the game runs. Switches are saved in the mod folder's
+  `cheats/toggles.txt`; pasted cheats start off, and turning on more than the cheat VM can run together (0x400
+  opcodes) is refused instead of running none. Cheats installed as mods show up too, and each folder can be deleted.
 - **Input macros** — record a sequence of on-screen controller presses with their timing and play it back, looped
   or once, for repetitive farming/grinding or practicing a sequence.
 - **Quick Save / Quick Load (experimental)** — same-session savestate that also survives dying, respawning and
@@ -138,6 +143,15 @@ Full release notes (including Nightly/Experimental prereleases) are on the
 As of v0.3, Nightly and Experimental have been merged into `main` and retired as separate channels — one
 consolidated build going forward instead of splitting fixes across three branches.
 
+- **v1.2.2** — **Cheat codes** (Atmosphère format, see above). TOTK's 64x64 dark shadow squares on Adreno: Lemon's
+  1/512-texel gather nudge (already used for AMD and Intel) is now enabled for Qualcomm's driver and Turnip; cause
+  found by Ryujinx Neo. Quick Load (BitRanger): threads that ended or moved on since the save are put back after a
+  scene change (save format 10), the video decoder is reopened and freed video buffers are mapped again, and a save
+  from an earlier run says so at once. A gamepad's A button clicks once (BitRanger) and no longer stays pressed when
+  focus moves. VI vsync events are locked while signaled (a crash at the start of some games, BitRanger). A driver
+  change clears the game's real shader cache folder; setting descriptions are no longer clipped. MaxwellDMA 1D
+  pitch/block-linear copies whose length is not a multiple of 16 no longer over-copy (Kingdom Hearts HD 1.5+2.5
+  videos; not confirmed yet).
 - **v1.2.1** — Fix release. Games no longer wait up to a minute for Nextendo Network when it does not answer
   (the boot-time token request now gives up after a few seconds). Saves no longer get corrupted after a Quick Load:
   `SetSize` flushes before truncating and the game's flushes reach the host file (BitRanger). Quick Save/Load
