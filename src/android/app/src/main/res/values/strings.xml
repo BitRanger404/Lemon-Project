@@ -599,8 +599,8 @@
     <string name="update_checking">Checking for updates…</string>
     <string name="update_none">No newer version found, or the update server could not be reached.</string>
     <string name="update_open_page">Open download page</string>
-    <string name="whats_new_title">What\'s new in Lemon 1.2.1</string>
-    <string name="whats_new_body">• Games no longer wait up to a minute on a black screen when Nextendo Network does not answer: they start offline after a few seconds.\n• Quick Load works in many more places and fails much less, and game saves are no longer corrupted after a Quick Load. Thanks to BitRanger!\n• NARUTO X BORUTO Ultimate Ninja STORM CONNECTIONS no longer closes when it goes online.\n• Fixed several crashes: when the app goes to the background or comes back, when closing a game, importing saves, adding a game folder and dragging the in-game menu.</string>
+    <string name="whats_new_title">What\'s new in Lemon 1.2.2</string>
+    <string name="whats_new_body">• Cheat codes: paste or import Atmosphere cheats from the game\'s page or the in-game menu, and turn each one on or off, even while you play.\n• TOTK: no more dark squares in the shadows on Adreno.\n• Quick Load works after a scene change, such as dying in a boss fight and respawning, and around videos. Thanks to BitRanger!\n• A gamepad\'s A button clicks once, and a crash when some games start is fixed (BitRanger).\n• Changing a game\'s driver really clears its shader cache, and setting descriptions are no longer cut off.</string>
     <string name="whats_new_got_it">Got it</string>
     <string name="whats_new_read_more">Read more</string>
     <string name="whats_new_link">https://lemon-emu.org/#features</string>

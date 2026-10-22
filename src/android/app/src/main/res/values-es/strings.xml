@@ -1425,8 +1425,8 @@
     <string name="update_checking">Buscando actualizaciones…</string>
     <string name="update_none">No hay una versión más nueva, o no se pudo conectar con el servidor de actualizaciones.</string>
     <string name="update_open_page">Abrir la página de descarga</string>
-    <string name="whats_new_title">Novedades de Lemon 1.2.1</string>
-    <string name="whats_new_body">• Los juegos ya no esperan hasta un minuto en negro cuando Nextendo Network no responde: arrancan sin online a los pocos segundos.\n• La carga rápida funciona en muchos más sitios y falla mucho menos, y las partidas ya no se corrompen después de una carga rápida. ¡Gracias, BitRanger!\n• NARUTO X BORUTO Ultimate Ninja STORM CONNECTIONS ya no se cierra al entrar en el online.\n• Arreglados varios cierres: al pasar la app a segundo plano o volver, al cerrar un juego, al importar partidas, al añadir una carpeta de juegos y al arrastrar el menú del juego.</string>
+    <string name="whats_new_title">Novedades de Lemon 1.2.2</string>
+    <string name="whats_new_body">• Trucos: pega o importa trucos de Atmosphere desde la página del juego o el menú del juego, y activa o desactiva cada uno, incluso mientras juegas.\n• TOTK: se acabaron los cuadrados oscuros en las sombras en Adreno.\n• La carga rápida funciona después de un cambio de escena, como morir en un jefe y reaparecer, y con vídeos de por medio. ¡Gracias, BitRanger!\n• El botón A del mando hace un solo clic, y se ha arreglado un cierre al arrancar algunos juegos (BitRanger).\n• Cambiar el driver de un juego borra de verdad su caché de shaders, y las descripciones de los ajustes ya no salen cortadas.</string>
     <string name="whats_new_got_it">Entendido</string>
     <string name="whats_new_read_more">Leer más</string>
     <string name="whats_new_link">https://lemon-emu.org/es/#features</string>
