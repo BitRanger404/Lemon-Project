@@ -244,7 +244,7 @@ fun FxPresetRow(item: FxPresetSetting) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             BasicText(item.title, style = LemonType.Button.copy(fontSize = 15.sp))
             if (item.description.isNotEmpty()) {
-                BasicText(item.description, style = LemonType.Body.copy(fontSize = 13.sp), maxLines = 2)
+                BasicText(item.description, style = LemonType.Body.copy(fontSize = 13.sp))
             }
         }
         if (item.deletable) {
@@ -291,7 +291,7 @@ fun FxShaderCardRow(item: FxShaderCardSetting) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 BasicText(item.title, style = LemonType.Button.copy(fontSize = 15.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (item.description.isNotEmpty()) {
-                    BasicText(item.description, style = LemonType.Body.copy(fontSize = 13.sp), maxLines = 2)
+                    BasicText(item.description, style = LemonType.Body.copy(fontSize = 13.sp))
                 }
             }
             Image(

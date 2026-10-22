@@ -439,7 +439,7 @@ private fun SectionGrid(items: List<SettingsItem>, actions: SettingsActions) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     BasicText(item.title, style = LemonType.Button.copy(fontSize = 16.sp))
                     if (item.description.isNotEmpty()) {
-                        BasicText(item.description, style = LemonType.Body.copy(fontSize = 13.sp), maxLines = 2)
+                        BasicText(item.description, style = LemonType.Body.copy(fontSize = 13.sp))
                     }
                 }
             }
@@ -729,7 +729,7 @@ private fun SettingRow(
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             BasicText(item.title, style = LemonType.Button.copy(fontSize = 15.sp))
             if (item.description.isNotEmpty()) {
-                BasicText(item.description, style = LemonType.Body.copy(fontSize = 13.sp), maxLines = 3)
+                BasicText(item.description, style = LemonType.Body.copy(fontSize = 13.sp))
             }
         }
         if (!value.isNullOrEmpty()) {

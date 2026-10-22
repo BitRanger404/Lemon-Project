@@ -1065,7 +1065,7 @@
     <string name="clear_shader_cache_warning_description">You will experience more stuttering as the shader cache regenerates</string>
     <string name="cleared_shaders_successfully">Cleared shaders successfully</string>
     <string name="driver_shader_wipe_dialog_title">Shaders Cleared</string>
-    <string name="driver_shader_wipe_dialog_message">Lemon has automatically cleared all shader caches to maintain Vulkan pipeline validation. This is required when switching GPU drivers to prevent crashes and graphical corruption. You may experience some stuttering as shaders rebuild.</string>
+    <string name="driver_shader_wipe_dialog_message">Lemon has cleared this game\'s shader cache, as it does whenever its GPU driver changes: shaders built by another driver can crash the game or draw it wrong. Expect some stutter while they are built again.</string>
     <string name="addons_game">Addons: %1$s</string>
     <string name="save_data">Save data</string>
     <string name="save_data_description">Manage save data specific to this game</string>
