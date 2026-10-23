@@ -199,12 +199,17 @@ HaltReason ArmNce::RunThread(Kernel::KThread* thread) {
     // Check if we're already interrupted.
     // If we are, we can just return immediately.
     HaltReason hr = static_cast<HaltReason>(m_guest_ctx.esr_el1.exchange(0));
+    auto* thread_params = &thread->GetNativeExecutionParameters();
     if (True(hr)) {
+        // UnlockThread copies the thread's TLS registers back to this core, so they must hold
+        // the values LoadContext gave it. A thread that has never run has zeros there, and would
+        // then run with a TLS address of 0.
+        thread_params->tpidr_el0 = m_guest_ctx.tpidr_el0;
+        thread_params->tpidrro_el0 = m_guest_ctx.tpidrro_el0;
         return hr;
     }
 
     // Pre-fetch thread context data to improve cache locality
-    auto* thread_params = &thread->GetNativeExecutionParameters();
     auto* process = thread->GetOwnerProcess();
 
     // Move non-critical operations outside the locked section
