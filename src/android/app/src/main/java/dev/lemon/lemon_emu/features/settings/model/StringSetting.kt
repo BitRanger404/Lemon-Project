@@ -14,6 +14,13 @@ enum class StringSetting(override val key: String) : AbstractStringSetting {
     LOG_FILTER("log_filter"),
     PROGRAM_ARGS("program_args"),
     POST_SHADER_CHAIN("post_shader_chain"),
+    HOTKEY_QUICK_SAVE("hotkey_quick_save"),
+    HOTKEY_QUICK_LOAD("hotkey_quick_load"),
+    HOTKEY_TOGGLE_STATS_OVERLAY("hotkey_toggle_stats_overlay"),
+    HOTKEY_TOGGLE_SOC_OVERLAY("hotkey_toggle_soc_overlay"),
+    HOTKEY_PAUSE_EMULATION("hotkey_pause_emulation"),
+    HOTKEY_EXIT_EMULATION("hotkey_exit_emulation"),
+    HOTKEY_ENABLE_BUTTON("hotkey_enable_button"),
 
     WEB_TOKEN("lemon_token"),
     WEB_USERNAME("lemon_username")

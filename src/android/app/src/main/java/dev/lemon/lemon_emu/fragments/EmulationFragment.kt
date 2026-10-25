@@ -833,40 +833,19 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
         binding.inGameMenu.setNavigationItemSelectedListener {
             when (it.itemId) {
                 R.id.menu_pause_emulation -> {
-                    if (emulationState.isPaused) {
-                        resumeEmulationFromUi()
-                    } else {
-                        pauseEmulationAndCaptureFrame()
-                    }
+                    togglePauseEmulation()
                     binding.inGameMenu.requestFocus()
                     true
                 }
 
                 R.id.menu_quick_save_state -> {
-                    // It may wait a moment for a safe point to save at: not on the main thread.
-                    runQuickState(R.string.emulation_quick_save_state_working, Toast.LENGTH_SHORT) {
-                        when (NativeLibrary.quickSaveState()) {
-                            NativeLibrary.QUICK_SAVE_SAVED -> R.string.emulation_quick_save_state_success
-                            NativeLibrary.QUICK_SAVE_NO_SAFE_MOMENT -> R.string.emulation_quick_state_no_safe_moment
-                            else -> R.string.emulation_quick_save_state_failure
-                        }
-                    }
+                    quickSaveState()
                     binding.inGameMenu.requestFocus()
                     true
                 }
 
                 R.id.menu_quick_load_state -> {
-                    // Restoring about a gigabyte of memory takes a moment: not on the main thread.
-                    runQuickState(R.string.emulation_quick_load_state_working, Toast.LENGTH_LONG) {
-                        when (NativeLibrary.quickLoadState()) {
-                            NativeLibrary.QUICK_LOAD_LOADED -> R.string.emulation_quick_load_state_success
-                            NativeLibrary.QUICK_LOAD_INCOMPATIBLE -> R.string.emulation_quick_load_state_incompatible
-                            NativeLibrary.QUICK_LOAD_NO_SAFE_MOMENT -> R.string.emulation_quick_state_no_safe_moment
-                            NativeLibrary.QUICK_LOAD_GAME_LOADING -> R.string.emulation_quick_load_state_game_loading
-                            NativeLibrary.QUICK_LOAD_NOT_THIS_SESSION -> R.string.emulation_quick_load_state_not_this_session
-                            else -> R.string.emulation_quick_load_state_failure
-                        }
-                    }
+                    quickLoadState()
                     binding.inGameMenu.requestFocus()
                     true
                 }
@@ -991,11 +970,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
                 }
 
                 R.id.menu_exit -> {
-                    clearPausedFrame()
-                    emulationState.stop()
-                    NativeConfig.reloadGlobalConfig()
-                    emulationViewModel.setIsEmulationStopping(true)
-                    binding.drawerLayout.close()
+                    exitEmulation()
                     binding.inGameMenu.requestFocus()
                     true
                 }
@@ -1784,13 +1759,89 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
         super.onPause()
     }
 
+    // The functions below are run from the in-game menu or a hotkey.
+
+    fun togglePauseEmulation() {
+        if (!this::emulationState.isInitialized || _binding == null) {
+            return
+        }
+        if (emulationState.isPaused) {
+            resumeEmulationFromUi()
+        } else {
+            pauseEmulationAndCaptureFrame()
+        }
+    }
+
+    fun exitEmulation() {
+        if (!this::emulationState.isInitialized || _binding == null) {
+            return
+        }
+        clearPausedFrame()
+        emulationState.stop()
+        NativeConfig.reloadGlobalConfig()
+        emulationViewModel.setIsEmulationStopping(true)
+        binding.drawerLayout.close()
+    }
+
+    /** Returns whether the overlay is now shown. */
+    fun toggleStatsOverlay(): Boolean {
+        val show = !BooleanSetting.SHOW_PERFORMANCE_OVERLAY.getBoolean()
+        BooleanSetting.SHOW_PERFORMANCE_OVERLAY.setBoolean(show)
+        if (_binding != null) {
+            updateShowStatsOverlay()
+        }
+        NativeConfig.saveGlobalConfig()
+        return show
+    }
+
+    /** Returns whether the overlay is now shown. */
+    fun toggleSocOverlay(): Boolean {
+        val show = !BooleanSetting.SHOW_SOC_OVERLAY.getBoolean()
+        BooleanSetting.SHOW_SOC_OVERLAY.setBoolean(show)
+        if (_binding != null) {
+            updateSocOverlay()
+        }
+        NativeConfig.saveGlobalConfig()
+        return show
+    }
+
+    fun quickSaveState() {
+        // It may wait a moment for a safe point to save at: not on the main thread.
+        runQuickState(R.string.emulation_quick_save_state_working, Toast.LENGTH_SHORT) {
+            when (NativeLibrary.quickSaveState()) {
+                NativeLibrary.QUICK_SAVE_SAVED -> R.string.emulation_quick_save_state_success
+                NativeLibrary.QUICK_SAVE_NO_SAFE_MOMENT ->
+                    R.string.emulation_quick_state_no_safe_moment
+                else -> R.string.emulation_quick_save_state_failure
+            }
+        }
+    }
+
+    fun quickLoadState() {
+        // Restoring about a gigabyte of memory takes a moment: not on the main thread.
+        runQuickState(R.string.emulation_quick_load_state_working, Toast.LENGTH_LONG) {
+            when (NativeLibrary.quickLoadState()) {
+                NativeLibrary.QUICK_LOAD_LOADED -> R.string.emulation_quick_load_state_success
+                NativeLibrary.QUICK_LOAD_INCOMPATIBLE ->
+                    R.string.emulation_quick_load_state_incompatible
+                NativeLibrary.QUICK_LOAD_NO_SAFE_MOMENT ->
+                    R.string.emulation_quick_state_no_safe_moment
+                NativeLibrary.QUICK_LOAD_GAME_LOADING ->
+                    R.string.emulation_quick_load_state_game_loading
+                NativeLibrary.QUICK_LOAD_NOT_THIS_SESSION ->
+                    R.string.emulation_quick_load_state_not_this_session
+                else -> R.string.emulation_quick_load_state_failure
+            }
+        }
+    }
+
     /**
      * Runs a Quick Save or Quick Load off the main thread: says it started (they can take a few
      * seconds) and shows the result. A second tap while one is running is ignored, so taps do not
      * queue up one load after another.
      */
     private fun runQuickState(workingMessage: Int, resultLength: Int, action: () -> Int) {
-        if (!quickStateRunning.compareAndSet(false, true)) {
+        if (!isAdded || !quickStateRunning.compareAndSet(false, true)) {
             return
         }
         val appContext = requireContext().applicationContext
@@ -2773,16 +2824,12 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
         popup.setOnMenuItemClickListener {
             when (it.itemId) {
                 R.id.menu_show_stats_overlay -> {
-                    it.isChecked = !it.isChecked
-                    BooleanSetting.SHOW_PERFORMANCE_OVERLAY.setBoolean(it.isChecked)
-                    updateShowStatsOverlay()
+                    it.isChecked = toggleStatsOverlay()
                     true
                 }
 
                 R.id.menu_show_soc_overlay -> {
-                    it.isChecked = !it.isChecked
-                    BooleanSetting.SHOW_SOC_OVERLAY.setBoolean(it.isChecked)
-                    updateSocOverlay()
+                    it.isChecked = toggleSocOverlay()
                     true
                 }
 
