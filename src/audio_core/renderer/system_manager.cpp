@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <chrono>
+#include <condition_variable>
+#include <mutex>
 
 #include "audio_core/adsp/adsp.h"
 #include "audio_core/audio_core.h"
@@ -15,8 +17,21 @@
 
 namespace AudioCore::Renderer {
 
+namespace {
+// See SystemManager::Hold.
+std::mutex hold_mutex;
+std::condition_variable hold_cv;
+bool held{};
+// The loop is in SendCommandToDsp, where the renderers signal the game.
+bool sending{};
+} // namespace
+
 SystemManager::SystemManager(Core::System& core_)
-    : core{core_}, audio_renderer{core.AudioCore().ADSP().AudioRenderer()} {}
+    : core{core_}, audio_renderer{core.AudioCore().ADSP().AudioRenderer()} {
+    // A new game never starts held.
+    std::scoped_lock lk{hold_mutex};
+    held = false;
+}
 
 SystemManager::~SystemManager() {
     Stop();
@@ -31,10 +46,26 @@ void SystemManager::InitializeUnsafe() {
             Common::SetCurrentThreadPriority(Common::ThreadPriority::High);
             while (active && !stop_token.stop_requested()) {
                 {
+                    std::unique_lock lk{hold_mutex};
+                    hold_cv.wait(lk,
+                                 [&] { return !held || !active || stop_token.stop_requested(); });
+                    if (!active || stop_token.stop_requested()) {
+                        break;
+                    }
+                    sending = true;
+                }
+                {
                     std::scoped_lock l{mutex1};
                     for (auto system : systems)
                         system->SendCommandToDsp();
                 }
+                {
+                    std::scoped_lock lk{hold_mutex};
+                    sending = false;
+                }
+                hold_cv.notify_all();
+                // While the game is paused, the sink takes nothing, and the loop waits here
+                // until it runs again.
                 audio_renderer.Signal();
                 audio_renderer.Wait();
             }
@@ -46,6 +77,11 @@ void SystemManager::Stop() {
     if (active) {
         active = false;
         thread.request_stop();
+        {
+            // A held loop waits for this to go on.
+            std::scoped_lock lk{hold_mutex};
+        }
+        hold_cv.notify_all();
         thread.join();
         audio_renderer.Stop();
     }
@@ -79,6 +115,22 @@ bool SystemManager::Remove(System& system_) {
     if (systems.empty())
         Stop();
     return true;
+}
+
+bool SystemManager::Hold() {
+    std::unique_lock lk{hold_mutex};
+    held = true;
+    // Only SendCommandToDsp signals the game: a loop waiting for the DSP signals nothing before
+    // it comes back to where it is held.
+    return hold_cv.wait_for(lk, std::chrono::milliseconds(100), [] { return !sending; });
+}
+
+void SystemManager::Release() {
+    {
+        std::scoped_lock lk{hold_mutex};
+        held = false;
+    }
+    hold_cv.notify_all();
 }
 
 } // namespace AudioCore::Renderer
