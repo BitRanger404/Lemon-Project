@@ -10,6 +10,7 @@ import dev.lemon.lemon_emu.NativeLibrary
 import dev.lemon.lemon_emu.R
 import dev.lemon.lemon_emu.LemonApplication
 import dev.lemon.lemon_emu.activities.EmulationActivity
+import dev.lemon.lemon_emu.features.input.GamepadHotkeys
 import dev.lemon.lemon_emu.features.input.NativeInput
 import dev.lemon.lemon_emu.features.input.model.AnalogDirection
 import dev.lemon.lemon_emu.features.input.model.NativeAnalog
@@ -989,8 +990,79 @@ class SettingsFragmentPresenter(
                     menuKey = MenuTag.SECTION_INPUT_OVERLAY
                 )
             )
+
+            add(HeaderSetting(R.string.hotkeys))
+            val enableButton = GamepadHotkeys.getEnableButton()
+            if (!GamepadHotkeys.isControllerConnected()) {
+                add(
+                    RunnableSetting(
+                        titleId = R.string.hotkeys_need_controller,
+                        isRunnable = false
+                    ) {}
+                )
+            }
+            add(
+                hotkeySetting(
+                    R.string.hotkey_enable_button,
+                    if (enableButton == 0) null else GamepadHotkeys.describe(setOf(enableButton))
+                ) { currentActivity ->
+                    HotkeyCaptureDialog.showEnableButton(currentActivity) { loadSettingsList(true) }
+                }
+            )
+            // The hotkeys work, and can be set, once Hotkey Enable is.
+            for (action in GamepadHotkeys.Action.entries) {
+                add(
+                    hotkeySetting(
+                        action.titleId,
+                        GamepadHotkeys.describe(action),
+                        enabled = enableButton != 0,
+                        trailingSwitch = if (action == GamepadHotkeys.Action.EXIT_EMULATION) {
+                            SwitchSetting(
+                                BooleanSetting.HOTKEY_CONFIRM_EXIT,
+                                titleId = R.string.hotkey_confirm_exit
+                            )
+                        } else {
+                            null
+                        }
+                    ) {
+                        HotkeyCaptureDialog.show(it, action) { loadSettingsList(true) }
+                    }
+                )
+            }
         }
     }
+
+    /**
+     * A hotkey row: shows its [buttons] (null: not set), and [capture] records new ones on a tap
+     * when [enabled].
+     */
+    private fun hotkeySetting(
+        titleId: Int,
+        buttons: String?,
+        enabled: Boolean = true,
+        trailingSwitch: SwitchSetting? = null,
+        capture: (FragmentActivity) -> Unit
+    ): RunnableSetting =
+        RunnableSetting(
+            titleId = titleId,
+            descriptionString = buttons ?: context.getString(R.string.not_set),
+            isRunnable = activity != null && enabled,
+            iconId = R.drawable.ic_controller,
+            isEnabled = enabled,
+            trailingSwitch = trailingSwitch
+        ) {
+            val currentActivity = activity ?: return@RunnableSetting
+            if (!GamepadHotkeys.isControllerConnected()) {
+                Toast.makeText(
+                    currentActivity,
+                    R.string.hotkeys_need_controller,
+                    Toast.LENGTH_SHORT
+                ).show()
+                loadSettingsList(true)
+                return@RunnableSetting
+            }
+            capture(currentActivity)
+        }
 
     private fun getPlayerProfileString(player: Int): String =
         context.getString(R.string.player_num_profile, player)

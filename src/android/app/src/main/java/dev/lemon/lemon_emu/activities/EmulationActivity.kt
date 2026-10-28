@@ -28,6 +28,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import androidx.navigation.NavOptions
 import dev.lemon.lemon_emu.fragments.EmulationFragment
 import dev.lemon.lemon_emu.utils.CustomSettingsHandler
@@ -52,6 +53,8 @@ import dev.lemon.lemon_emu.R
 import dev.lemon.lemon_emu.LemonApplication
 import dev.lemon.lemon_emu.databinding.ActivityEmulationBinding
 import dev.lemon.lemon_emu.dialogs.NetPlayDialog
+import dev.lemon.lemon_emu.features.input.GamepadHotkeyTracker
+import dev.lemon.lemon_emu.features.input.GamepadHotkeys
 import dev.lemon.lemon_emu.features.input.NativeInput
 import dev.lemon.lemon_emu.features.settings.model.BooleanSetting
 import dev.lemon.lemon_emu.features.settings.model.IntSetting
@@ -255,6 +258,7 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener, InputManager
         startMotionSensorListener()
         InputHandler.updateControllerData()
         notifyPhysicalControllerState()
+        hotkeys.reload()
 
         buildPictureInPictureParams()
     }
@@ -421,9 +425,25 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener, InputManager
             return super.dispatchKeyEvent(event)
         }
 
-        // Runs before the drawer check so its button state stays right while the menu is open.
-        if (isControllerInput && handleMenuHotkeys(event)) {
-            return true
+        // These run before the drawer check so their button state stays right while the menu is
+        // open.
+        if (isControllerInput) {
+            val menuHotkey = handleMenuHotkeys(event)
+            // While the menu is open, buttons can be let go without the release coming here (the
+            // controller navigation hook remaps them): hotkeys start again from nothing held.
+            val hotkey = if (emulationViewModel.drawerOpen.value) {
+                hotkeys.reset()
+                false
+            } else {
+                hotkeys.onKeyEvent(
+                    event,
+                    canFire = !menuHotkey && NativeLibrary.isRunning(),
+                    run = ::runHotkey
+                )
+            }
+            if (menuHotkey || hotkey) {
+                return true
+            }
         }
 
         if (emulationViewModel.drawerOpen.value) {
@@ -435,6 +455,62 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener, InputManager
         }
 
         return InputHandler.dispatchKeyEvent(event)
+    }
+
+    private val hotkeys = GamepadHotkeyTracker { InputHandler.dispatchKeyEvent(it) }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // Buttons let go while another window has focus never send their release here.
+        if (!hasFocus) {
+            hotkeys.reset()
+        }
+    }
+
+    private var exitHotkeyPressedAt = 0L
+
+    private fun runHotkey(action: GamepadHotkeys.Action) {
+        val emulationFragment = findEmulationFragment() ?: return
+        when (action) {
+            GamepadHotkeys.Action.QUICK_SAVE -> emulationFragment.quickSaveState()
+            GamepadHotkeys.Action.QUICK_LOAD -> emulationFragment.quickLoadState()
+            GamepadHotkeys.Action.TOGGLE_STATS_OVERLAY -> emulationFragment.toggleStatsOverlay()
+            GamepadHotkeys.Action.TOGGLE_SOC_OVERLAY -> emulationFragment.toggleSocOverlay()
+            GamepadHotkeys.Action.PAUSE_EMULATION -> emulationFragment.togglePauseEmulation()
+            GamepadHotkeys.Action.EXIT_EMULATION -> {
+                // Exiting loses what was not saved: unless turned off, it takes a second press, as
+                // RetroArch's quit.
+                val now = SystemClock.uptimeMillis()
+                if (!BooleanSetting.HOTKEY_CONFIRM_EXIT.getBoolean() ||
+                    now - exitHotkeyPressedAt < EXIT_HOTKEY_CONFIRM_MS
+                ) {
+                    exitHotkeyPressedAt = 0L
+                    emulationFragment.exitEmulation()
+                } else {
+                    exitHotkeyPressedAt = now
+                    Toast.makeText(this, R.string.hotkey_exit_press_again, Toast.LENGTH_SHORT)
+                        .show()
+                }
+            }
+        }
+    }
+
+    /** Tells the game that [keyCode], pressed on the controller of [event], was let go. */
+    private fun releaseInGame(event: KeyEvent, keyCode: Int) {
+        InputHandler.dispatchKeyEvent(
+            KeyEvent(
+                event.downTime,
+                event.eventTime,
+                KeyEvent.ACTION_UP,
+                keyCode,
+                0,
+                event.metaState,
+                event.deviceId,
+                0,
+                event.flags,
+                event.source
+            )
+        )
     }
 
     private var hotkeyStickDown = false
@@ -490,20 +566,7 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener, InputManager
                 } else {
                     KeyEvent.KEYCODE_BUTTON_START
                 }
-                InputHandler.dispatchKeyEvent(
-                    KeyEvent(
-                        event.downTime,
-                        event.eventTime,
-                        KeyEvent.ACTION_UP,
-                        first,
-                        0,
-                        event.metaState,
-                        event.deviceId,
-                        0,
-                        event.flags,
-                        event.source
-                    )
-                )
+                releaseInGame(event, first)
             }
             emulationViewModel.setDrawerOpen(!drawerOpen)
             return true
@@ -537,12 +600,14 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener, InputManager
         return InputHandler.dispatchGenericMotionEvent(event)
     }
 
-    private fun notifyControllerInput() {
+    private fun findEmulationFragment(): EmulationFragment? {
         val navHostFragment =
             supportFragmentManager.findFragmentById(R.id.fragment_container) as? NavHostFragment
-        val emulationFragment =
-            navHostFragment?.childFragmentManager?.fragments?.firstOrNull() as? dev.lemon.lemon_emu.fragments.EmulationFragment
-        emulationFragment?.onControllerInputDetected()
+        return navHostFragment?.childFragmentManager?.fragments?.firstOrNull() as? EmulationFragment
+    }
+
+    private fun notifyControllerInput() {
+        findEmulationFragment()?.onControllerInputDetected()
     }
 
     private fun isGameController(deviceId: Int): Boolean {
@@ -935,6 +1000,7 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener, InputManager
         const val EXTRA_SELECTED_GAME = "SelectedGame"
         const val EXTRA_OVERLAY_GAMELESS_EDIT_MODE = "overlayGamelessEditMode"
         private const val ROM_SWAP_STOP_TIMEOUT_MS = 5000L
+        private const val EXIT_HOTKEY_CONFIRM_MS = 2000L
         @Volatile
         private var processHasEmulationSession = false
         @Volatile

@@ -588,6 +588,7 @@ private fun SettingRow(
     var switchState: Boolean? = null
     var onClick: () -> Unit = {}
     var icon = 0
+    var trailingSwitch: SwitchSetting? = null
 
     when (item) {
         is SwitchSetting -> {
@@ -650,6 +651,7 @@ private fun SettingRow(
         }
         is RunnableSetting -> {
             icon = item.iconId
+            trailingSwitch = item.trailingSwitch
             onClick = { if (item.isRunnable) item.runnable.invoke() }
         }
         is LaunchableSetting -> {
@@ -742,6 +744,26 @@ private fun SettingRow(
         }
         if (switchState != null) {
             LemonSwitch(switchState)
+        }
+        trailingSwitch?.let { switch ->
+            // Its own tap target: the label with the switch.
+            val checked = switch.getIsChecked(switch.needsRuntimeGlobal)
+            Row(
+                Modifier
+                    .clip(CircleShape)
+                    .lemonInteractive(
+                        shape = CircleShape,
+                        cornerRadius = 16.dp,
+                        role = null,
+                        onClick = { if (enabled) actions.onSwitch(switch, !checked, position) }
+                    )
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                BasicText(switch.title, style = LemonType.Button.copy(fontSize = 14.sp))
+                LemonSwitch(checked)
+            }
         }
         if (showOptions) {
             RowOptionsButton { (item as? InputSetting)?.let { actions.onInputOptions(hostView, it, position) } }
