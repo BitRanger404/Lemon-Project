@@ -105,6 +105,11 @@ Everything below is specific to Lemon, on top of the Switch emulation it inherit
   each cheat on or off, applied live while the game runs. Switches are saved in the mod folder's
   `cheats/toggles.txt`; pasted cheats start off, and turning on more than the cheat VM can run together (0x400
   opcodes) is refused instead of running none. Cheats installed as mods show up too, and each folder can be deleted.
+  A Download button fetches the game's file from [switch-cheats-db](https://github.com/HamletDuFromage/switch-cheats-db)
+  (gameplay and 60 FPS/resolution/graphics codes for the build, into their own folders; only the title ID is sent).
+- **Gamepad hotkeys** — Settings → Controls → Hotkeys: a Hotkey Enable button plus a combination per action (Quick
+  Save, Quick Load, stats overlay, device overlay, pause, exit with a confirm press), RetroArch style: Hotkey Enable is
+  held back from the game while used, a tap or a lone hold still reaches it.
 - **Input macros** — record a sequence of on-screen controller presses with their timing and play it back, looped
   or once, for repetitive farming/grinding or practicing a sequence.
 - **Quick Save / Quick Load (experimental)** — same-session savestate that also survives dying, respawning and
@@ -143,6 +148,14 @@ Full release notes (including Nightly/Experimental prereleases) are on the
 As of v0.3, Nightly and Experimental have been merged into `main` and retired as separate channels — one
 consolidated build going forward instead of splitting fixes across three branches.
 
+- **v1.3.0** — **Gamepad hotkeys** (BitRanger) and **cheat downloads** from switch-cheats-db (see above). Quick
+  Save/Load (BitRanger): a load drops what the GPU drew since the save and restores every channel's 3D, compute, 2D and
+  inline-memory engine registers (no black screen across scenes); the audio render loop is held while the game is
+  paused for a save or load (far fewer "Game is busy"); a load keeps the live IPC message buffer of a thread waiting
+  for a service's answer (2010-0212) and matches a thread back from a kernel call only if back from the same one
+  (2001-0117); messages replace each other. NCE: a thread whose first run is cut short keeps the core's TLS registers.
+  Friend service answers GetFriendListIds and DeclareOpenOnlinePlaySession (MHGU on Nextendo). Config arrays check an
+  index against the innermost array (critical log on every settings save with several add-ons disabled).
 - **v1.2.2** — **Cheat codes** (Atmosphère format, see above). TOTK's 64x64 dark shadow squares on Adreno: Lemon's
   1/512-texel gather nudge (already used for AMD and Intel) is now enabled for Qualcomm's driver and Turnip; cause
   found by Ryujinx Neo. Quick Load (BitRanger): threads that ended or moved on since the save are put back after a
