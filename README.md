@@ -63,8 +63,8 @@ just what's needed to build and run it on Android phones and handhelds: no Qt/de
 multi-platform CI, no PowerVR-specific code paths. It ships in three builds: **Lemon**, **Lemon Lite** (lighter
 defaults for Adreno 6xx/7xx and Mali) and **Lemon Lite & Spoofed** (Lite under a benchmark app's package name).
 
-Started as a personal build for the maintainer's own device(s), Lemon is now made by **Team Lemon**: Ghael, Seak
-and Sidgey. Builds are published on the [Releases page](https://git.lemon-emu.org/lemon/Lemon-Project/releases) of
+Started as a personal build for the maintainer's own device(s), Lemon is now made by **Team Lemon**: Ghael, Seak,
+Sidgey and BitRanger. Builds are published on the [Releases page](https://git.lemon-emu.org/lemon/Lemon-Project/releases) of
 Lemon's own server and the app checks for new ones on launch (with the GitHub mirror as a fallback). It's still a
 small project — there's a [Discord](https://discord.com/invite/PEE7Q5TVM5) for feedback and support, but it isn't
 actively looking for external contributions; the source and releases are public under the GPL.
