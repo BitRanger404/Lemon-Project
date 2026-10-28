@@ -1464,6 +1464,18 @@
     <string name="loader_requires_firmware_description"><![CDATA[Es posible que este juego necesite el firmware para funcionar bien y no tienes ninguno instalado. Instala el firmware antes de iniciarlo, o pulsa \"Aceptar\" para iniciarlo de todos modos.]]></string>
     <string name="emulation_quick_save_state">Guardado rápido</string>
     <string name="emulation_quick_load_state">Carga rápida</string>
+    <string name="hotkeys">Atajos del mando</string>
+    <string name="hotkeys_need_controller">Los atajos necesitan un mando físico</string>
+    <string name="hotkey_toggle_stats_overlay">Mostrar u ocultar las estadísticas de rendimiento</string>
+    <string name="hotkey_toggle_soc_overlay">Mostrar u ocultar la información del dispositivo</string>
+    <string name="hotkey_exit_press_again">Pulsa otra vez para salir</string>
+    <string name="hotkey_confirm_exit">¿Confirmar al salir?</string>
+    <string name="hotkey_enable_button">Botón de atajos</string>
+    <string name="hotkey_enable_button_capture">Pulsa el botón que mantendrás pulsado en todos los atajos. El juego sigue recibiendo un toque rápido de ese botón, o una pulsación más larga si lo mantienes solo.</string>
+    <string name="hotkey_enable_part">El botón de atajos (%1$s) forma parte de todos los atajos.</string>
+    <string name="hotkey_needs_another_button">Mantén otro botón junto con %1$s</string>
+    <string name="hotkey_press_one_button">Pulsa un solo botón</string>
+    <string name="gamepad_hotkey_capture">Mantén pulsados a la vez los botones del mando para este atajo y suéltalos. Elige botones que el juego no use juntos.</string>
     <string name="emulation_quick_save_state_success">Estado guardado</string>
     <string name="emulation_quick_save_state_failure">No se pudo guardar el estado</string>
     <string name="emulation_quick_load_state_success">Estado cargado</string>
@@ -1474,6 +1486,8 @@
     <string name="emulation_quick_load_state_not_this_session">No hay ningún guardado de esta sesión</string>
     <string name="emulation_quick_save_state_working">Guardando…</string>
     <string name="emulation_quick_load_state_working">Cargando…</string>
+    <string name="emulation_quick_save_state_still_working">El guardado sigue en curso…</string>
+    <string name="emulation_quick_load_state_still_working">La carga sigue en curso…</string>
     <string name="lemon_cheater">Lemon Cheater</string>
     <string name="lemon_cheater_value_hint">Valor</string>
     <string name="lemon_cheater_new_search">Nueva búsqueda</string>
