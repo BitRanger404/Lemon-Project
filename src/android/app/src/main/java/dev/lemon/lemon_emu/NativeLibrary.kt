@@ -216,6 +216,7 @@ object NativeLibrary {
     const val QUICK_LOAD_NO_SAFE_MOMENT = 3 // a lock handoff never ended; nothing was changed
     const val QUICK_LOAD_GAME_LOADING = 4 // threads of the save are not back yet; nothing was changed
     const val QUICK_LOAD_NOT_THIS_SESSION = 5 // no save made since the game started
+    const val QUICK_LOAD_MOVED_PAST = 6 // the game has moved past the save; nothing was changed
 
     /**
      * Loads the quicksave slot [id] (see getQuickSaveSlots) like quickLoadState. Once loaded, the
